@@ -70,6 +70,12 @@ revoke execute on function public.upsert_snapshot(jsonb, jsonb, jsonb) from publ
 
 -- ---------------------------------------------------------------- read RPCs
 
+-- Both functions gain a new `unit` output column, which CREATE OR REPLACE
+-- cannot do to an existing function (Postgres requires the OUT-parameter
+-- list to match) - drop first.
+drop function if exists public.market_rates(integer, date, boolean);
+drop function if exists public.item_summary(integer[]);
+
 create or replace function public.market_rates(
     p_market_id  integer default null,
     p_date       date    default null,
