@@ -91,14 +91,16 @@ def api_set_favourite(market_id: int):
 def _rates_for(conn, market_id: int | None, on: str, favourites_only: bool = False) -> list[dict]:
     """Items on `on` with the previous available day's price for a change column.
 
-    One market (market_id), or - with favourites_only - the starred sections of
-    every market. Starred sections come first; within a section, feed order.
+    One market (market_id), or - with favourites_only - the starred items and
+    sections of every market. Order: starred items, then starred sections, then
+    the rest in feed order.
     """
-    where = "fs.section IS NOT NULL" if favourites_only else "i.market_id = ?"
+    where = "(fi.item_id IS NOT NULL OR fs.section IS NOT NULL)" if favourites_only else "i.market_id = ?"
     args: tuple = () if favourites_only else (market_id,)
     prev = conn.execute(
         "SELECT MAX(r.date) AS d FROM rates r JOIN items i ON i.id = r.item_id "
         "LEFT JOIN favourite_sections fs ON fs.market_id = i.market_id AND fs.section = i.section "
+        "LEFT JOIN favourite_items fi ON fi.item_id = i.id "
         f"WHERE {where} AND r.date < ?",
         (*args, on),
     ).fetchone()["d"]
@@ -108,14 +110,16 @@ def _rates_for(conn, market_id: int | None, on: str, favourites_only: bool = Fal
                r.price_low, r.price_high, r.raw,
                p.price_low AS prev_low, p.price_high AS prev_high, p.raw AS prev_raw,
                fs.section IS NOT NULL AS fav_section,
+               fi.item_id IS NOT NULL AS fav_item,
                (SELECT MIN(id) FROM items x WHERE x.market_id = i.market_id AND x.section = i.section) AS section_order
         FROM items i
         JOIN markets m ON m.id = i.market_id
         JOIN rates r ON r.item_id = i.id AND r.date = ?
         LEFT JOIN rates p ON p.item_id = i.id AND p.date = ?
         LEFT JOIN favourite_sections fs ON fs.market_id = i.market_id AND fs.section = i.section
+        LEFT JOIN favourite_items fi ON fi.item_id = i.id
         WHERE {where}
-        ORDER BY fav_section DESC, m.rank, section_order, i.id
+        ORDER BY fav_item DESC, fav_section DESC, m.rank, section_order, i.id
         """,
         (on, prev, *args),
     ).fetchall()
@@ -124,6 +128,7 @@ def _rates_for(conn, market_id: int | None, on: str, favourites_only: bool = Fal
         d = _row(r)
         d.pop("section_order")
         d["fav_section"] = bool(d["fav_section"])
+        d["fav_item"] = bool(d["fav_item"])
         d["prev_date"] = prev
         d["change"] = (
             round(d["price_low"] - d["prev_low"], 2)
@@ -136,7 +141,7 @@ def _rates_for(conn, market_id: int | None, on: str, favourites_only: bool = Fal
 
 @app.get("/api/rates")
 def api_rates():
-    """?market_id=37[&date=YYYY-MM-DD]  or  ?favourites=1 for starred sections across all markets."""
+    """?market_id=37[&date=YYYY-MM-DD]  or  ?favourites=1 for starred items/sections across all markets."""
     market_id = request.args.get("market_id", type=int)
     favourites_only = request.args.get("favourites") == "1"
     on = request.args.get("date")
@@ -153,14 +158,33 @@ def api_rates():
     return jsonify(date=on, market_id=market_id, rates=rates)
 
 
-@app.get("/api/favourite-sections")
-def api_favourite_sections():
+@app.get("/api/favourites")
+def api_favourites():
+    """Everything starred: {"sections": [...], "items": [...]}."""
     with db.connect() as conn:
-        rows = conn.execute(
+        sections = conn.execute(
             "SELECT fs.market_id, m.name AS market, fs.section FROM favourite_sections fs "
             "JOIN markets m ON m.id = fs.market_id ORDER BY m.rank, fs.section"
         ).fetchall()
-    return jsonify([_row(r) for r in rows])
+        items = conn.execute(
+            "SELECT i.id, i.name, i.name_ml, i.section, i.market_id, m.name AS market FROM favourite_items fi "
+            "JOIN items i ON i.id = fi.item_id JOIN markets m ON m.id = i.market_id ORDER BY m.rank, i.id"
+        ).fetchall()
+    return jsonify(sections=[_row(r) for r in sections], items=[_row(r) for r in items])
+
+
+@app.put("/api/items/<int:item_id>/favourite")
+def api_set_item_favourite(item_id: int):
+    """Body: {"favourite": true|false}. Stars/unstars an item."""
+    want = bool((request.get_json(silent=True) or {}).get("favourite", True))
+    with db.connect() as conn:
+        if not conn.execute("SELECT 1 FROM items WHERE id = ?", (item_id,)).fetchone():
+            return jsonify(error="unknown item"), 404
+        if want:
+            conn.execute("INSERT OR IGNORE INTO favourite_items(item_id) VALUES (?)", (item_id,))
+        else:
+            conn.execute("DELETE FROM favourite_items WHERE item_id = ?", (item_id,))
+    return jsonify(item_id=item_id, favourite=want)
 
 
 @app.put("/api/markets/<int:market_id>/sections/favourite")

@@ -7,6 +7,7 @@ Tables
   fetch_log(fetched_at, rate_date, rows, status, message)
   favourites(market_id)                                      -- starred markets
   favourite_sections(market_id, section)                     -- starred sub-markets within a market
+  favourite_items(item_id)                                   -- starred individual items
 """
 from __future__ import annotations
 
@@ -52,6 +53,9 @@ CREATE TABLE IF NOT EXISTS favourite_sections (
     market_id INTEGER NOT NULL REFERENCES markets(id),
     section   TEXT    NOT NULL,
     PRIMARY KEY (market_id, section)
+);
+CREATE TABLE IF NOT EXISTS favourite_items (
+    item_id INTEGER PRIMARY KEY REFERENCES items(id)
 );
 CREATE TABLE IF NOT EXISTS fetch_log (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
