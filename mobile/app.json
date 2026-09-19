@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Kerala Market",
+    "slug": "kerala-market",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#fbf7ee",
+          "dark": {
+            "backgroundColor": "#0f1a14"
+          }
+        }
+      ]
+    ],
+    "android": {
+      "package": "io.github.krixhnarr.keralamarket",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1e8a52"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "ios": {
+      "bundleIdentifier": "io.github.krixhnarr.keralamarket",
+      "supportsTablet": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0bc5de77-57f4-4bb9-87df-726cc6cdc10e"
+      }
+    },
+    "owner": "andrewhugh"
+  }
+}

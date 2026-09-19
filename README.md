@@ -79,9 +79,25 @@ meant to be public; row-level security protects the data). Then deploy the
 
 Local preview: `python -m http.server 5500 --directory web` → <http://localhost:5500>.
 
-## Installing on a phone
+## The Android app
 
-The site is a PWA named **Kerala Market** (see `web/manifest.json`, icons in
+`mobile/` is a native Expo (React Native) app — the same Market / Charts / My
+Sales screens against the same Supabase project, built the way ToDo Mate is:
+
+```bash
+cd mobile
+npm install
+npx eas-cli build --platform android --profile preview     # APK to install directly
+npx eas-cli build --platform android --profile production  # AAB for Play Console
+```
+
+EAS holds the signing key (project `@andrewhugh/kerala-market` on expo.dev).
+Bump `expo.android.versionCode` / `expo.version` in `mobile/app.json` for
+each Play release.
+
+## Installing the website on a phone
+
+The site is also a PWA named **Kerala Market** (see `web/manifest.json`, icons in
 `web/icons/`, offline app-shell caching in `web/sw.js`). Once deployed to a
 public HTTPS URL, open it on the phone's browser and:
 
@@ -151,4 +167,4 @@ only the service role can execute.
 - `supabase/migrations/` – schema, RLS, RPCs
 - `web/` – the site (`index.html`, `config.js`)
 - `.github/workflows/fetch.yml` – scheduled fetch
-- `android/` – the Play Store app (Trusted Web Activity); see `android/README.md`
+- `mobile/` – the Android app (Expo / React Native, built with EAS); same Supabase backend as the site
