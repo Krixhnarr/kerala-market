@@ -151,6 +151,18 @@ dialog .msg.ok { color: var(--up); }
 dialog .alt { text-align: center; font-size: 13px; color: var(--text-2); }
 .or { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 12px; }
 .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.view-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+.view-tab { padding: 7px 16px; border-radius: 8px; font-size: 14px; }
+.view-tab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.view.hidden { display: none; }
+.ledger-form { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
+.ledger-form input[type="date"] { width: 148px; }
+.ledger-form input#lg-item { width: 180px; }
+.ledger-form input[type="number"] { width: 110px; }
+.ledger-form input#lg-note { flex: 1; min-width: 140px; }
+.ledger-form button { white-space: nowrap; }
+tr.ledger-row .del { border: 0; background: transparent; color: var(--text-3); font-size: 17px; padding: 2px 6px; cursor: pointer; line-height: 1; }
+tr.ledger-row .del:hover { color: var(--down); }
 @media (max-width: 640px) { .search { width: 100%; } .search input, .results { width: 100%; } .chart-wrap { height: 280px; } th.hide-sm, td.hide-sm { display: none; } }
 </style>
 </head>
@@ -166,6 +178,12 @@ dialog .alt { text-align: center; font-size: 13px; color: var(--text-2); }
     </div>
   </header>
 
+  <nav class="view-tabs" id="view-tabs">
+    <button class="view-tab on" data-view="market">Market</button>
+    <button class="view-tab" data-view="ledger">My Sales</button>
+  </nav>
+
+  <div id="view-market" class="view">
   <div class="tiles" id="tiles"></div>
 
   <section class="card">
@@ -194,6 +212,34 @@ dialog .alt { text-align: center; font-size: 13px; color: var(--text-2); }
       <tbody id="rates"></tbody>
     </table>
   </section>
+  </div>
+
+  <div id="view-ledger" class="view hidden">
+    <section class="card" id="ledger-signin-card">
+      <h2>My Sales</h2>
+      <p class="hint">Keep a private record of what you sold — how many kg, for how much — for your own accounts. Only you can see it.</p>
+      <button class="primary" id="ledger-signin-btn">Sign in to start</button>
+    </section>
+
+    <section class="card" id="ledger-card" style="display:none">
+      <h2>My Sales <span class="muted" id="ledger-summary"></span></h2>
+      <p class="hint">Keep a private record of what you sold — how many kg, for how much — for your own accounts. Only you can see it.</p>
+      <form id="ledger-form" class="ledger-form">
+        <input type="date" id="lg-date" required>
+        <input type="text" id="lg-item" list="lg-items" placeholder="Item (e.g. Arecanut)" autocomplete="off" required>
+        <datalist id="lg-items"></datalist>
+        <input type="number" id="lg-kg" placeholder="Kg" min="0.001" step="0.001" required>
+        <input type="number" id="lg-amount" placeholder="Amount (₹)" min="0" step="0.01" required>
+        <input type="text" id="lg-note" placeholder="Note (optional)">
+        <button type="submit" class="primary">Add</button>
+      </form>
+      <table>
+        <thead><tr><th>Date</th><th>Item</th><th class="num">Kg</th><th class="num">Amount (₹)</th><th class="num">₹/kg</th><th class="hide-sm">Note</th><th></th></tr></thead>
+        <tbody id="ledger-rows"></tbody>
+      </table>
+      <p class="empty" id="ledger-empty" style="display:none">No entries yet — add your first sale above.</p>
+    </section>
+  </div>
 </div>
 
 <dialog id="auth-dialog">
@@ -313,7 +359,7 @@ sb.auth.onAuthStateChange((_event, session) => {
   const was = user?.id;
   user = session?.user ?? null;
   renderAuth();
-  if (was !== user?.id) loadMarkets();
+  if (was !== user?.id) { loadMarkets(); if (!el('view-ledger').classList.contains('hidden')) loadLedger(); }
 });
 function requireUser() {
   if (user) return true;
@@ -321,6 +367,84 @@ function requireUser() {
   msg('Sign in to save favourites.');
   return false;
 }
+
+// ---- view tabs (Market / My Sales)
+el('view-tabs').addEventListener('click', e => {
+  const b = e.target.closest('.view-tab'); if (!b) return;
+  for (const x of el('view-tabs').children) x.classList.toggle('on', x === b);
+  const view = b.dataset.view;
+  el('view-market').classList.toggle('hidden', view !== 'market');
+  el('view-ledger').classList.toggle('hidden', view !== 'ledger');
+  if (view === 'ledger') loadLedger();
+});
+
+// ---- My Sales: a private per-user record of what was sold, for the farmer's
+// own accounts. Every row is scoped to auth.uid() by RLS (ledger_entries).
+const LEDGER_ITEMS = ['Arecanut', 'Coconut', 'Copra', 'Coconut Oil', 'Pepper', 'Rubber',
+  'Cashew', 'Cocoa', 'Rice', 'Paddy', 'Ginger', 'Turmeric', 'Nutmeg', 'Mace', 'Clove',
+  'Coir', 'Cardamom', 'Banana', 'Pineapple', 'Tapioca'];
+(function populateLedgerItems() {
+  const dl = el('lg-items');
+  for (const name of LEDGER_ITEMS) { const o = document.createElement('option'); o.value = name; dl.appendChild(o); }
+})();
+try { el('lg-date').value = new Date().toISOString().slice(0, 10); } catch {}
+
+async function loadLedger() {
+  const signedIn = !!user;
+  el('ledger-signin-card').style.display = signedIn ? 'none' : '';
+  el('ledger-card').style.display = signedIn ? '' : 'none';
+  if (!signedIn) return;
+  try {
+    const rows = await q(sb.from('ledger_entries').select('*').order('entry_date', { ascending: false }).order('id', { ascending: false }));
+    renderLedger(rows);
+  } catch {
+    el('ledger-rows').innerHTML = '';
+    el('ledger-empty').textContent = 'Could not load your sales — try refreshing.';
+    el('ledger-empty').style.display = '';
+  }
+}
+function renderLedger(rows) {
+  const tb = el('ledger-rows'); tb.innerHTML = '';
+  el('ledger-empty').style.display = rows.length ? 'none' : '';
+  const ym = new Date().toISOString().slice(0, 7);
+  const thisMonth = rows.filter(r => r.entry_date.startsWith(ym));
+  const totalKg = thisMonth.reduce((sum, r) => sum + +r.quantity_kg, 0);
+  const totalAmt = thisMonth.reduce((sum, r) => sum + +r.amount, 0);
+  el('ledger-summary').textContent = thisMonth.length ? `· this month: ${fmt(totalKg)} kg · ₹${fmt(totalAmt)}` : '';
+  for (const r of rows) {
+    const tr = document.createElement('tr'); tr.className = 'ledger-row';
+    const perKg = +r.quantity_kg ? (+r.amount / +r.quantity_kg) : null;
+    tr.innerHTML = '<td></td><td></td><td class="num"></td><td class="num"></td><td class="num muted"></td><td class="hide-sm muted"></td><td></td>';
+    tr.children[0].textContent = r.entry_date;
+    tr.children[1].textContent = r.item_name;
+    tr.children[2].textContent = fmt(r.quantity_kg);
+    tr.children[3].textContent = fmt(r.amount);
+    tr.children[4].textContent = perKg != null ? fmt(perKg) : '—';
+    tr.children[5].textContent = r.note || '';
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '×'; del.title = 'Delete this entry';
+    del.onclick = async () => { await q(sb.from('ledger_entries').delete().eq('id', r.id)); await loadLedger(); };
+    tr.children[6].appendChild(del);
+    tb.appendChild(tr);
+  }
+}
+el('ledger-signin-btn').onclick = () => openAuth();
+el('ledger-form').onsubmit = async e => {
+  e.preventDefault();
+  if (!requireUser()) return;
+  const entry = {
+    user_id: user.id,
+    entry_date: el('lg-date').value,
+    item_name: el('lg-item').value.trim(),
+    quantity_kg: +el('lg-kg').value,
+    amount: +el('lg-amount').value,
+    note: el('lg-note').value.trim(),
+  };
+  if (!entry.item_name || !(entry.quantity_kg > 0) || !(entry.amount >= 0)) return;
+  await q(sb.from('ledger_entries').insert(entry));
+  el('lg-item').value = ''; el('lg-kg').value = ''; el('lg-amount').value = ''; el('lg-note').value = '';
+  el('lg-item').focus();
+  await loadLedger();
+};
 
 // ---- status
 async function loadStatus() {

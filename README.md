@@ -90,6 +90,18 @@ public HTTPS URL, open it on the phone's browser and:
 
 It opens full-screen with the Kerala Market icon, no browser chrome.
 
+## My Sales (personal ledger)
+
+Signed-in users get a second tab, **My Sales**, alongside the market data:
+a private log of their own transactions ("sold 40kg arecanut for ₹14,400 on
+19 Sep") for their own record-keeping - date, item, kg, amount, an optional
+note, and a computed ₹/kg. Rows live in `ledger_entries`, scoped to
+`auth.uid()` by RLS exactly like the favourite tables, so nobody but the
+signed-in user can see or write their own entries - not other users, not an
+admin view (there isn't one). Apply
+[`supabase/migrations/20260919150000_ledger.sql`](supabase/migrations/20260919150000_ledger.sql)
+the same way as the others.
+
 ## Unit conversion (₹/kg)
 
 Manorama prints most agricultural commodities per quintal (100 kg) but the
@@ -139,3 +151,4 @@ only the service role can execute.
 - `supabase/migrations/` – schema, RLS, RPCs
 - `web/` – the site (`index.html`, `config.js`)
 - `.github/workflows/fetch.yml` – scheduled fetch
+- `android/` – the Play Store app (Trusted Web Activity); see `android/README.md`
