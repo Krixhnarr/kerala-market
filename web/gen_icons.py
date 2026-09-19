@@ -2,7 +2,7 @@
 
 Run once (icons are committed, not regenerated at build time):
     ../.venv/Scripts/python gen_icons.py
-Draws three ascending price bars (blue, blue, orange) on a blue rounded tile -
+Draws three ascending price bars (white, white, kasavu gold) on a Kerala-green tile -
 legible down to a 16px favicon, and reads as "market prices" at a glance.
 Outputs icon-192.png, icon-512.png, icon-maskable-512.png, apple-touch-icon.png
 (180), favicon-32/16.png and favicon.ico into web/icons/.
@@ -14,8 +14,8 @@ import os
 
 from PIL import Image, ImageDraw
 
-BLUE = (42, 120, 214, 255)     # --s1
-ORANGE = (235, 104, 52, 255)   # --s2
+GREEN = (30, 138, 82, 255)     # --s1 Kerala palm green
+GOLD = (212, 160, 23, 255)     # kasavu gold (brightened for legibility on green)
 WHITE = (255, 255, 255, 255)
 
 OUT = os.path.join(os.path.dirname(__file__), "icons")
@@ -28,9 +28,9 @@ def draw_mark(size: int, pad_frac: float, maskable: bool = False) -> Image.Image
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     if maskable:
-        d.rectangle([0, 0, size, size], fill=BLUE)
+        d.rectangle([0, 0, size, size], fill=GREEN)
     else:
-        d.rounded_rectangle([0, 0, size - 1, size - 1], radius=size * 0.22, fill=BLUE)
+        d.rounded_rectangle([0, 0, size - 1, size - 1], radius=size * 0.22, fill=GREEN)
 
     # Three bars of increasing height, centered as a group, sitting on a shared
     # baseline. The safe area is smaller for maskable icons (they get cropped
@@ -41,7 +41,7 @@ def draw_mark(size: int, pad_frac: float, maskable: bool = False) -> Image.Image
     bar_w = box / 5.2       # 3 bars + 2 gaps, gap ~= 0.6 * bar_w
     gap = bar_w * 0.7
     heights = [box * 0.42, box * 0.68, box * 1.0]
-    colors = [WHITE, WHITE, ORANGE]
+    colors = [WHITE, WHITE, GOLD]
     total_w = bar_w * 3 + gap * 2
     x = (size - total_w) / 2
     radius = bar_w * 0.28
