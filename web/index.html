@@ -2,9 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kerala Market Rates</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kerala Market</title>
 <meta name="description" content="Daily Kerala commodity rates from Malayala Manorama — coconut oil, copra, arecanut, pepper, rubber and more — with price history.">
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2a78d6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="icons/favicon-16.png" sizes="16x16" type="image/png">
+<link rel="shortcut icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<!-- iOS ignores manifest.json for install metadata, so it needs these directly -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kerala Market">
+<meta name="mobile-web-app-capable" content="yes">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -55,6 +69,7 @@ button.link { border: 0; background: transparent; color: var(--accent); padding:
 .tile .name-ml { font-size: 13px; color: var(--text-3); }
 .tile .val { font-size: 22px; font-weight: 600; margin-top: 4px; }
 .tile .chg { font-size: 13px; }
+.tile .kg, td .kg { font-size: 12px; color: var(--text-3); }
 .tile .mkt { font-size: 12px; color: var(--text-3); }
 .up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--text-3); }
 .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 22px; }
@@ -153,7 +168,7 @@ dialog .alt { text-align: center; font-size: 13px; color: var(--text-2); }
     </div>
     <div class="chips" id="chips"></div>
     <div class="chart-wrap"><canvas id="chart"></canvas></div>
-    <p class="hint">Prices in ₹ as printed by Manorama (mostly per quintal; gold per sovereign, pineapple per kg). Where a range is printed, the lower value is charted. Click any table row or tile to chart it; up to 4 items.</p>
+    <p class="hint">Prices in ₹ as printed by Manorama (mostly per quintal = 100 kg; gold per sovereign). For commodities confirmed to be quoted per quintal, a ₹/kg estimate is shown alongside — arecanut, copra, pepper, coconut oil, rubber, rice, sugar, turmeric, dry ginger, cashew, cocoa, coir, nux vomica, paddy and coffee. Where a range is printed, the lower value is charted. Click any table row or tile to chart it; up to 4 items.</p>
   </section>
 
   <section class="card">
@@ -188,6 +203,7 @@ dialog .alt { text-align: center; font-size: 13px; color: var(--text-2); }
 const SERIES = ['--s1', '--s2', '--s3', '--s4'];
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const fmt = n => n == null ? '—' : new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(+n);
+const perKg = (unit, low, high) => unit !== 'quintal' || low == null ? '' : `≈ ₹${fmt(low / 100)}${high != null && +high !== +low ? '–' + fmt(high / 100) : ''}/kg`;
 const chg = (c, base) => {
   if (c == null) return '<span class="flat">—</span>';
   c = +c; base = base == null ? null : +base;
@@ -307,7 +323,8 @@ async function loadFeatured() {
     const t = document.createElement('div'); t.className = 'tile';
     const range = it.price_high != null && +it.price_high !== +it.price_low ? `–${fmt(it.price_high)}` : '';
     const prevBase = it.price_low != null && it.change != null ? +it.price_low - +it.change : null;
-    t.innerHTML = `<div class="name"></div><div class="name-ml ml"></div><div class="val">₹${fmt(it.price_low)}${range}</div><div class="chg">${chg(it.change, prevBase)} <span class="muted">vs ${it.prev_date || '—'}</span></div><div class="mkt"></div>`;
+    const kg = perKg(it.unit, it.price_low, it.price_high);
+    t.innerHTML = `<div class="name"></div><div class="name-ml ml"></div><div class="val">₹${fmt(it.price_low)}${range}</div>${kg ? `<div class="kg muted">${kg}</div>` : ''}<div class="chg">${chg(it.change, prevBase)} <span class="muted">vs ${it.prev_date || '—'}</span></div><div class="mkt"></div>`;
     t.querySelector('.name').textContent = it.name;
     t.querySelector('.name-ml').textContent = it.name_ml;
     t.querySelector('.mkt').textContent = it.market + (it.section && it.section !== it.market ? ' · ' + it.section : '');
@@ -442,6 +459,8 @@ async function loadRates(marketId) {
     tr.children[1].textContent = r.name_ml;
     tr.children[2].textContent = r.price_low == null ? (r.raw || '—') : fmt(r.price_low) + range;
     if (r.price_low == null) tr.children[2].classList.add('muted');
+    const kg = perKg(r.unit, r.price_low, r.price_high);
+    if (kg) { const line = document.createElement('div'); line.className = 'kg'; line.textContent = kg; tr.children[2].appendChild(line); }
     tr.onclick = () => addSeries({ id: r.item_id, name: r.name, name_ml: r.name_ml, market: r.market });
     tb.appendChild(tr);
   }
@@ -566,6 +585,11 @@ function restyleChart() {
   renderAuth();
   loadStatus(); loadFeatured(); loadMarkets();
 })();
+
+// ---- installable app shell (safe to skip if unsupported, e.g. older iOS Safari)
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
 </script>
 </body>
 </html>

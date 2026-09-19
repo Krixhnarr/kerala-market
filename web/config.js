@@ -1,8 +1,8 @@
 // Public configuration for the dashboard. The anon key is designed to be
 // shipped to browsers: row-level security in Postgres is what protects data.
 window.CONFIG = {
-  supabaseUrl: "https://YOUR-PROJECT.supabase.co",
-  supabaseAnonKey: "YOUR-ANON-KEY",
+  supabaseUrl: "https://kspeovtntddidtdeedtl.supabase.co",
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzcGVvdnRudGRkaWR0ZGVlZHRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3OTkzMjEsImV4cCI6MjEwNTM3NTMyMX0.eWDCI4lh_jNQwd3y7xnwWH2BsaiVTpvaxzvIabhBba4",
   // Set true after enabling the Google provider in Supabase → Authentication → Providers.
   googleAuth: false,
   // Item IDs pinned as tiles at the top (Manorama's itemId; stable across years).

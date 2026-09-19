@@ -29,11 +29,15 @@ comes from the Internet Archive (`backfill.py`).
 3. **Authentication → Providers**: Email is on by default (with confirmation
    emails). Optionally enable **Google** and set `googleAuth: true` in
    `web/config.js`.
-4. **Authentication → URL Configuration**: set *Site URL* to where the site
+4. Applying a later migration (e.g. `20260919140000_add_unit.sql`, which adds
+   the ₹/kg conversion): paste it into **SQL Editor → Run** the same way.
+   After it's applied, run `python fetch.py` once so the currently-active
+   items get classified from live data.
+5. **Authentication → URL Configuration**: set *Site URL* to where the site
    will live (e.g. `https://kerala-rates.vercel.app`) so confirmation and
    magic-link emails redirect back correctly. Add `http://localhost:5500` to
    *Redirect URLs* for local testing.
-5. **Project Settings → API**: note the *Project URL*, *anon* key and
+6. **Project Settings → API**: note the *Project URL*, *anon* key and
    *service_role* key.
 
 ## 2. Load data
@@ -74,6 +78,28 @@ meant to be public; row-level security protects the data). Then deploy the
   (or copy `web/` contents to a `docs/` folder).
 
 Local preview: `python -m http.server 5500 --directory web` → <http://localhost:5500>.
+
+## Installing on a phone
+
+The site is a PWA named **Kerala Market** (see `web/manifest.json`, icons in
+`web/icons/`, offline app-shell caching in `web/sw.js`). Once deployed to a
+public HTTPS URL, open it on the phone's browser and:
+
+- **Android (Chrome):** menu → *Add to Home screen* / *Install app*.
+- **iPhone (Safari):** Share → *Add to Home Screen*.
+
+It opens full-screen with the Kerala Market icon, no browser chrome.
+
+## Unit conversion (₹/kg)
+
+Manorama prints most agricultural commodities per quintal (100 kg) but the
+feed carries no unit field. For commodities confirmed against independent
+Kerala mandi listings - **arecanut, copra, pepper, coconut oil, rubber, rice,
+sugar, turmeric, dry ginger, cashew, cocoa, coir, nux vomica, paddy, coffee**
+- the site shows a computed "≈ ₹X/kg" line under the price. Everything else
+(nutmeg, mace, clove, cardamom, gold, silver, raw coconuts sold by count,
+etc.) shows no conversion rather than a guessed one - see the comment above
+`classify_unit()` in `scraper.py` for why each of those is excluded.
 
 ## How favourites work
 

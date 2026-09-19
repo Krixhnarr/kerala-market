@@ -49,7 +49,7 @@ def store_rates(sb: Client, rates: list[Rate]) -> int:
         }
         items[r.item_id] = {
             "id": r.item_id, "market_id": r.market_id, "section": r.section, "section_ml": r.section_ml,
-            "name": r.item, "name_ml": r.item_ml, "last_seen": d,
+            "name": r.item, "name_ml": r.item_ml, "unit": r.unit, "last_seen": d,
         }
         rows.append({
             "date": d, "item_id": r.item_id, "price_low": r.price_low, "price_high": r.price_high, "raw": r.raw,
