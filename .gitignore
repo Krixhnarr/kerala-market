@@ -8,3 +8,11 @@ __pycache__/
 .env
 supabase/.temp/
 supabase/.branches/
+android/kerala-market.keystore
+android/keystore-password.txt
+android/app/build/
+android/build/
+android/.gradle/
+android/*.apk
+android/*.aab
+android/*.idsig
