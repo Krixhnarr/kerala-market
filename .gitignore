@@ -5,3 +5,6 @@ backfill.log
 backfill.err
 __pycache__/
 .claude/
+.env
+supabase/.temp/
+supabase/.branches/

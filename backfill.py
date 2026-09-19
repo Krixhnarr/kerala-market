@@ -17,8 +17,8 @@ import time
 
 import requests
 
-import db
 import scraper
+import store
 
 CDX_URL = "https://web.archive.org/cdx/search/cdx"
 SNAPSHOT_URL = "https://web.archive.org/web/{ts}id_/" + scraper.FEED_URL
@@ -68,42 +68,40 @@ def main() -> int:
     stamps = sorted(list_snapshots(args.since), reverse=True)
     print(f"{len(stamps)} archived snapshots", flush=True)
 
-    with db.connect() as conn:
-        have = {r["date"] for r in conn.execute("SELECT DISTINCT date FROM rates")}
-        stored = skipped = failed = streak = 0
-        for i, ts in enumerate(stamps, 1):
-            snap_day = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}"
-            # A snapshot taken on day D carries D's rates (or D-1's if captured
-            # before the morning update); skip only when D itself is stored.
-            if not args.no_skip_existing and snap_day in have:
-                skipped += 1
-                continue
-            try:
-                data = get_with_retry(SNAPSHOT_URL.format(ts=ts)).json()
-                rate_date, rates = scraper.parse_feed(data)
-            except Exception as exc:  # archive hiccups are common; keep going
-                failed += 1
-                streak += 1
-                print(f"  [{i}/{len(stamps)}] {ts}: FAILED {type(exc).__name__}: {exc}", flush=True)
-                if streak >= 5:
-                    print("5 failures in a row - archive.org is probably throttling this machine. "
-                          "Stopping; re-run later, it resumes where it left off.", flush=True)
-                    break
-                time.sleep(args.delay)
-                continue
-            streak = 0
-            iso = rate_date.isoformat()
-            if not args.no_skip_existing and iso in have:
-                skipped += 1
-            else:
-                db.store_rates(conn, rates)
-                have.add(iso)
-                stored += 1
-                print(f"  [{i}/{len(stamps)}] {ts} -> {iso}: {len(rates)} rates", flush=True)
-            if i % 20 == 0:
-                conn.commit()
+    sb = store.client()
+    have = store.stored_dates(sb)
+    stored = skipped = failed = streak = 0
+    for i, ts in enumerate(stamps, 1):
+        snap_day = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}"
+        # A snapshot taken on day D carries D's rates (or D-1's if captured
+        # before the morning update); skip only when D itself is stored.
+        if not args.no_skip_existing and snap_day in have:
+            skipped += 1
+            continue
+        try:
+            data = get_with_retry(SNAPSHOT_URL.format(ts=ts)).json()
+            rate_date, rates = scraper.parse_feed(data)
+        except Exception as exc:  # archive hiccups are common; keep going
+            failed += 1
+            streak += 1
+            print(f"  [{i}/{len(stamps)}] {ts}: FAILED {type(exc).__name__}: {exc}", flush=True)
+            if streak >= 5:
+                print("5 failures in a row - archive.org is probably throttling this machine. "
+                      "Stopping; re-run later, it resumes where it left off.", flush=True)
+                break
             time.sleep(args.delay)
-        db.log_fetch(conn, "backfill", None, stored, f"stored={stored} skipped={skipped} failed={failed}")
+            continue
+        streak = 0
+        iso = rate_date.isoformat()
+        if not args.no_skip_existing and iso in have:
+            skipped += 1
+        else:
+            store.store_rates(sb, rates)
+            have.add(iso)
+            stored += 1
+            print(f"  [{i}/{len(stamps)}] {ts} -> {iso}: {len(rates)} rates", flush=True)
+        time.sleep(args.delay)
+    store.log_fetch(sb, "backfill", None, stored, f"stored={stored} skipped={skipped} failed={failed}")
     print(f"done: stored {stored} days, skipped {skipped}, failed {failed}")
     return 0
 

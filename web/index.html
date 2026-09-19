@@ -4,9 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kerala Market Rates</title>
+<meta name="description" content="Daily Kerala commodity rates from Malayala Manorama — coconut oil, copra, arecanut, pepper, rubber and more — with price history.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
 <style>
 :root {
   color-scheme: light;
@@ -42,7 +45,9 @@ h1 small { font-weight: 400; color: var(--text-2); font-size: 14px; margin-left:
 button, select, input { font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 button.small { padding: 3px 10px; font-size: 13px; }
+button.link { border: 0; background: transparent; color: var(--accent); padding: 0; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 22px; }
 .tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; cursor: pointer; display: grid; gap: 2px; }
 .tile:hover { border-color: var(--accent); }
@@ -92,16 +97,31 @@ tr.sec.fav td { color: var(--text); }
 tr.sec .star { border: 0; background: transparent; padding: 0 6px 0 0; color: var(--text-3); font-size: 14px; line-height: 1; vertical-align: -1px; }
 tr.sec .star:hover, tr.sec.fav .star { color: var(--s4); }
 tr.sec .mkt { color: var(--text-3); font-weight: 500; }
+tr.row { cursor: pointer; }
+tr.row:hover td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+tr.row.sel td { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 tr.row .star { border: 0; background: transparent; padding: 0 6px 0 0; color: transparent; font-size: 14px; line-height: 1; vertical-align: -1px; }
 tr.row:hover .star { color: var(--text-3); }
 tr.row .star:hover, tr.row.fav .star { color: var(--s4); }
 tr.row .ctx { color: var(--text-3); font-size: 12px; margin-left: 6px; }
 @media (hover: none) { tr.row .star { color: var(--text-3); } }
-tr.row { cursor: pointer; }
-tr.row:hover td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
-tr.row.sel td { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .muted { color: var(--text-3); }
 .hint { font-size: 12px; color: var(--text-3); }
+.empty { padding: 18px 8px; color: var(--text-3); font-size: 14px; }
+/* auth dialog */
+dialog { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); padding: 22px 24px; width: min(380px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+dialog h3 { margin: 0 0 14px; font-size: 18px; }
+dialog form { display: grid; gap: 10px; }
+dialog input { width: 100%; }
+dialog .row { display: flex; gap: 8px; align-items: center; }
+dialog .row button { flex: 1; }
+dialog .msg { font-size: 13px; min-height: 1.2em; }
+dialog .msg.err { color: var(--down); }
+dialog .msg.ok { color: var(--up); }
+dialog .alt { text-align: center; font-size: 13px; color: var(--text-2); }
+.or { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 12px; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 @media (max-width: 640px) { .search { width: 100%; } .search input, .results { width: 100%; } .chart-wrap { height: 280px; } th.hide-sm, td.hide-sm { display: none; } }
 </style>
 </head>
@@ -111,7 +131,8 @@ tr.row.sel td { background: color-mix(in srgb, var(--accent) 16%, transparent); 
     <h1>Kerala Market Rates <small class="ml">വിപണി നിലവാരം · Malayala Manorama</small></h1>
     <div class="status">
       <span id="status">loading…</span>
-      <button id="refresh" class="small">Refresh now</button>
+      <span id="who"></span>
+      <button id="auth" class="small">Sign in</button>
       <button id="theme" class="small" title="Toggle dark mode">◐</button>
     </div>
   </header>
@@ -137,7 +158,7 @@ tr.row.sel td { background: color-mix(in srgb, var(--accent) 16%, transparent); 
 
   <section class="card">
     <h2>Today's rates <span class="muted" id="rates-date"></span></h2>
-    <p class="hint" style="margin:-6px 0 8px">Star a market to keep it first and make it the default view. Star a sub-market (section heading) or an individual item to pin it to the top of its market and collect it under ★ Favourites.</p>
+    <p class="hint" style="margin:-6px 0 8px" id="star-hint"></p>
     <div class="tabs" id="tabs"></div>
     <table>
       <thead><tr><th>Item</th><th class="hide-sm">Malayalam</th><th class="num">Price (₹)</th><th class="num">Change</th></tr></thead>
@@ -146,25 +167,52 @@ tr.row.sel td { background: color-mix(in srgb, var(--accent) 16%, transparent); 
   </section>
 </div>
 
+<dialog id="auth-dialog">
+  <h3 id="auth-title">Sign in</h3>
+  <form id="auth-form">
+    <input id="email" type="email" placeholder="Email" autocomplete="email" required>
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" minlength="6" required>
+    <div class="row">
+      <button type="submit" class="primary" id="auth-submit">Sign in</button>
+      <button type="button" id="auth-magic">Email me a link</button>
+    </div>
+    <div class="msg" id="auth-msg"></div>
+    <div class="or" id="google-or">or</div>
+    <button type="button" id="auth-google">Continue with Google</button>
+    <div class="alt"><span id="auth-alt-text">New here?</span> <button type="button" class="link" id="auth-toggle">Create an account</button></div>
+    <div class="alt"><button type="button" class="link" id="auth-close">Cancel</button></div>
+  </form>
+</dialog>
+
 <script>
 const SERIES = ['--s1', '--s2', '--s3', '--s4'];
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const fmt = n => n == null ? '—' : new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n);
+const fmt = n => n == null ? '—' : new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(+n);
 const chg = (c, base) => {
   if (c == null) return '<span class="flat">—</span>';
+  c = +c; base = base == null ? null : +base;
   const pct = base ? ` (${(c / base * 100).toFixed(1)}%)` : '';
   if (c > 0) return `<span class="up">▲ ${fmt(c)}${pct}</span>`;
   if (c < 0) return `<span class="down">▼ ${fmt(-c)}${pct}</span>`;
   return '<span class="flat">0</span>';
 };
 const el = id => document.getElementById(id);
-const api = (p, o) => fetch(p, o).then(r => r.json());
+
+const sb = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
+// Unwrap {data, error} and surface errors in the status line.
+async function q(promise) {
+  const { data, error } = await promise;
+  if (error) { console.error(error); el('status').textContent = 'Error: ' + error.message; throw error; }
+  return data;
+}
 
 // ---- state
 let selected = [];          // [{id, name, name_ml, market}]
 let days = 365;
 let currentMarket = null;
 let chart;
+let user = null;
+const FAV = 'fav';          // pseudo-market id for the "★ Favourites" tab
 
 // ---- theme
 const applyTheme = t => { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; try { localStorage.setItem('theme', t || ''); } catch {} restyleChart(); };
@@ -175,56 +223,143 @@ el('theme').onclick = () => {
 };
 try { const t = localStorage.getItem('theme'); if (t) applyTheme(t); } catch {}
 
+// ---- auth
+let signUpMode = false;
+function renderAuth() {
+  el('who').textContent = user ? user.email : '';
+  el('auth').textContent = user ? 'Sign out' : 'Sign in';
+  el('star-hint').textContent = user
+    ? 'Star a market to keep it first and make it the default view. Star a sub-market (section heading) or an individual item to pin it to the top of its market and collect it under ★ Favourites.'
+    : 'Sign in to star markets, sub-markets and items — your favourites are saved to your account.';
+}
+function setAuthMode(signUp) {
+  signUpMode = signUp;
+  el('auth-title').textContent = signUp ? 'Create an account' : 'Sign in';
+  el('auth-submit').textContent = signUp ? 'Create account' : 'Sign in';
+  el('auth-alt-text').textContent = signUp ? 'Already have an account?' : 'New here?';
+  el('auth-toggle').textContent = signUp ? 'Sign in' : 'Create an account';
+  el('password').autocomplete = signUp ? 'new-password' : 'current-password';
+  msg('');
+}
+function msg(text, kind = '') { const m = el('auth-msg'); m.textContent = text; m.className = 'msg ' + kind; }
+function openAuth() { setAuthMode(false); el('auth-dialog').showModal(); el('email').focus(); }
+el('auth').onclick = async () => {
+  if (user) { await sb.auth.signOut(); return; }
+  openAuth();
+};
+el('auth-close').onclick = () => el('auth-dialog').close();
+el('auth-toggle').onclick = () => setAuthMode(!signUpMode);
+el('google-or').style.display = el('auth-google').style.display = CONFIG.googleAuth ? '' : 'none';
+el('auth-google').onclick = async () => {
+  const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href.split('#')[0] } });
+  if (error) msg(error.message, 'err');
+};
+el('auth-magic').onclick = async () => {
+  const email = el('email').value.trim();
+  if (!email) { msg('Enter your email first.', 'err'); el('email').focus(); return; }
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split('#')[0] } });
+  msg(error ? error.message : 'Check your inbox for a sign-in link.', error ? 'err' : 'ok');
+};
+el('auth-form').onsubmit = async e => {
+  e.preventDefault();
+  const email = el('email').value.trim(), password = el('password').value;
+  el('auth-submit').disabled = true;
+  try {
+    if (signUpMode) {
+      const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.href.split('#')[0] } });
+      if (error) return msg(error.message, 'err');
+      if (data.session) el('auth-dialog').close();
+      else msg('Account created — check your email to confirm, then sign in.', 'ok');
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) return msg(error.message, 'err');
+      el('auth-dialog').close();
+    }
+  } finally { el('auth-submit').disabled = false; }
+};
+sb.auth.onAuthStateChange((_event, session) => {
+  const was = user?.id;
+  user = session?.user ?? null;
+  renderAuth();
+  if (was !== user?.id) loadMarkets();
+});
+function requireUser() {
+  if (user) return true;
+  openAuth();
+  msg('Sign in to save favourites.');
+  return false;
+}
+
 // ---- status
 async function loadStatus() {
-  const s = await api('/api/status');
-  const lf = s.last_fetch;
-  let txt = s.latest_date ? `Latest: ${s.latest_date} · ${s.days} days of history` : 'No data yet';
-  if (lf) txt += ` · last fetch ${lf.fetched_at.replace('T', ' ')} (${lf.status})`;
+  const [s] = await q(sb.rpc('data_status'));
+  if (!s || !s.latest_date) { el('status').textContent = 'No data yet'; return; }
+  let txt = `Latest: ${s.latest_date} · ${s.days} days of history`;
+  if (s.last_fetch_at) txt += ` · updated ${new Date(s.last_fetch_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`;
   el('status').textContent = txt;
 }
-el('refresh').onclick = async () => {
-  el('refresh').disabled = true; el('refresh').textContent = 'Fetching…';
-  const r = await api('/api/refresh', { method: 'POST' });
-  el('refresh').disabled = false; el('refresh').textContent = 'Refresh now';
-  if (r.status !== 'ok') alert('Fetch failed: ' + r.message);
-  await Promise.all([loadStatus(), loadFeatured(), loadRates(currentMarket), loadChart()]);
-};
 
 // ---- featured tiles
 async function loadFeatured() {
-  const d = await api('/api/featured');
+  const items = await q(sb.rpc('item_summary', { p_item_ids: CONFIG.featured }));
   const wrap = el('tiles'); wrap.innerHTML = '';
-  for (const it of d.items) {
+  for (const it of items) {
     const t = document.createElement('div'); t.className = 'tile';
-    const range = it.price_high != null && it.price_high !== it.price_low ? `–${fmt(it.price_high)}` : '';
-    const prevBase = it.price_low != null && it.change != null ? it.price_low - it.change : null;
+    const range = it.price_high != null && +it.price_high !== +it.price_low ? `–${fmt(it.price_high)}` : '';
+    const prevBase = it.price_low != null && it.change != null ? +it.price_low - +it.change : null;
     t.innerHTML = `<div class="name"></div><div class="name-ml ml"></div><div class="val">₹${fmt(it.price_low)}${range}</div><div class="chg">${chg(it.change, prevBase)} <span class="muted">vs ${it.prev_date || '—'}</span></div><div class="mkt"></div>`;
     t.querySelector('.name').textContent = it.name;
     t.querySelector('.name-ml').textContent = it.name_ml;
     t.querySelector('.mkt').textContent = it.market + (it.section && it.section !== it.market ? ' · ' + it.section : '');
-    t.onclick = () => addSeries({ id: it.id, name: it.name, name_ml: it.name_ml, market: it.market });
+    t.onclick = () => addSeries({ id: it.item_id, name: it.name, name_ml: it.name_ml, market: it.market });
     wrap.appendChild(t);
   }
-  if (!selected.length && d.items.length) {
-    addSeries({ id: d.items[0].id, name: d.items[0].name, name_ml: d.items[0].name_ml, market: d.items[0].market });
+  if (!selected.length && items.length) {
+    addSeries({ id: items[0].item_id, name: items[0].name, name_ml: items[0].name_ml, market: items[0].market });
   }
 }
 
+// ---- favourites (all three levels live in the user's own rows; RLS scopes the queries)
+async function toggleFavMarket(id, on) {
+  if (!requireUser()) return;
+  await q(on ? sb.from('favourite_markets').insert({ user_id: user.id, market_id: id })
+             : sb.from('favourite_markets').delete().match({ user_id: user.id, market_id: id }));
+  await loadMarkets();
+}
+async function toggleFavSection(marketId, section, on) {
+  if (!requireUser()) return;
+  await q(on ? sb.from('favourite_sections').insert({ user_id: user.id, market_id: marketId, section })
+             : sb.from('favourite_sections').delete().match({ user_id: user.id, market_id: marketId, section }));
+  await loadMarkets();
+}
+async function toggleFavItem(itemId, on) {
+  if (!requireUser()) return;
+  await q(on ? sb.from('favourite_items').insert({ user_id: user.id, item_id: itemId })
+             : sb.from('favourite_items').delete().match({ user_id: user.id, item_id: itemId }));
+  await loadMarkets();
+}
+
 // ---- markets + rates table
-const FAV = 'fav';   // pseudo-market id for the "★ Favourites" tab
 async function loadMarkets() {
-  const [ms, favs] = await Promise.all([api('/api/markets'), api('/api/favourites')]);
+  const [markets, favMarkets, favSections, favItems] = await Promise.all([
+    q(sb.from('markets').select('id,name,name_ml,rank').order('rank').order('id')),
+    user ? q(sb.from('favourite_markets').select('market_id')) : [],
+    user ? q(sb.from('favourite_sections').select('market_id')) : [],
+    user ? q(sb.from('favourite_items').select('item_id')) : [],
+  ]);
+  const favSet = new Set(favMarkets.map(f => f.market_id));
+  const ms = markets.map(m => ({ ...m, favourite: favSet.has(m.id) }))
+                    .sort((a, b) => (b.favourite - a.favourite) || (a.rank - b.rank) || (a.id - b.id));
   const tabs = el('tabs'); tabs.innerHTML = '';
   let sepDone = false;
-  const favCount = favs.sections.length + favs.items.length;
+  const favCount = favSections.length + favItems.length;
   if (favCount) {
     const t = document.createElement('span'); t.className = 'tab fav'; t.dataset.id = FAV; t.dataset.name = 'Favourites';
     const b = document.createElement('button'); b.textContent = `★ Favourites (${favCount})`; b.onclick = () => loadRates(FAV);
     b.style.paddingRight = '11px';
     t.appendChild(b); tabs.appendChild(t);
   } else if (currentMarket === FAV) {
-    currentMarket = null;   // last starred section was removed
+    currentMarket = null;   // last starred thing was removed (or user signed out)
   }
   for (const m of ms) {
     if (!m.favourite && !sepDone && ms.some(x => x.favourite)) {
@@ -235,30 +370,32 @@ async function loadMarkets() {
     const star = document.createElement('button'); star.className = 'star'; star.textContent = m.favourite ? '★' : '☆';
     star.title = m.favourite ? 'Remove from favourites' : 'Add to favourites';
     star.setAttribute('aria-label', star.title); star.setAttribute('aria-pressed', String(m.favourite));
-    star.onclick = async e => {
-      e.stopPropagation();
-      await api(`/api/markets/${m.id}/favourite`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ favourite: !m.favourite }) });
-      await loadMarkets();
-    };
+    star.onclick = e => { e.stopPropagation(); toggleFavMarket(m.id, !m.favourite); };
     t.append(b, star); tabs.appendChild(t);
   }
   if (ms.length) loadRates(currentMarket ?? ms[0].id);
 }
+
 async function loadRates(marketId) {
   if (marketId == null) return;
   currentMarket = marketId;
-  let marketName = '';
   const favView = marketId === FAV;
   for (const t of el('tabs').querySelectorAll('.tab')) {
-    const on = favView ? t.dataset.id === FAV : +t.dataset.id === marketId;
-    t.classList.toggle('on', on);
-    if (on) marketName = t.dataset.name;
+    t.classList.toggle('on', favView ? t.dataset.id === FAV : +t.dataset.id === marketId);
   }
-  const d = await api(favView ? '/api/rates?favourites=1' : `/api/rates?market_id=${marketId}`);
-  el('rates-date').textContent = d.date ? `· ${d.date}` : '';
+  const [rows, status] = await Promise.all([
+    q(sb.rpc('market_rates', favView ? { p_favourites: true } : { p_market_id: marketId })),
+    q(sb.rpc('data_status')),
+  ]);
+  el('rates-date').textContent = status[0]?.latest_date ? `· ${status[0].latest_date}` : '';
   const tb = el('rates'); tb.innerHTML = '';
+  if (!rows.length) {
+    const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 4; td.className = 'empty';
+    td.textContent = favView ? 'Nothing starred yet.' : 'No rates for this market on the latest day.';
+    tr.appendChild(td); tb.appendChild(tr); return;
+  }
   let sec = null;
-  for (const r of d.rates) {
+  for (const r of rows) {
     const key = r.fav_item ? '★items' : r.market_id + '|' + r.section;
     if (r.fav_item && key !== sec) {
       sec = key;
@@ -275,11 +412,7 @@ async function loadRates(marketId) {
         star.textContent = r.fav_section ? '★' : '☆';
         star.title = r.fav_section ? 'Unstar this sub-market' : 'Star this sub-market';
         star.setAttribute('aria-label', star.title); star.setAttribute('aria-pressed', String(r.fav_section));
-        star.onclick = async e => {
-          e.stopPropagation();
-          await api(`/api/markets/${r.market_id}/sections/favourite`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section: r.section, favourite: !r.fav_section }) });
-          await loadMarkets();   // refreshes the ★ Favourites tab and re-renders the table
-        };
+        star.onclick = e => { e.stopPropagation(); toggleFavSection(r.market_id, r.section, !r.fav_section); };
         td.appendChild(star);
       }
       if (favView) {
@@ -290,16 +423,12 @@ async function loadRates(marketId) {
     }
     const tr = document.createElement('tr'); tr.className = 'row' + (r.fav_item ? ' fav' : ''); tr.dataset.id = r.item_id;
     if (selected.some(s => s.id === r.item_id)) tr.classList.add('sel');
-    const range = r.price_high != null && r.price_high !== r.price_low ? `–${fmt(r.price_high)}` : '';
+    const range = r.price_high != null && +r.price_high !== +r.price_low ? `–${fmt(r.price_high)}` : '';
     tr.innerHTML = `<td></td><td class="hide-sm ml muted"></td><td class="num"></td><td class="num">${chg(r.change, r.prev_low)}</td>`;
     const star = document.createElement('button'); star.className = 'star'; star.textContent = r.fav_item ? '★' : '☆';
     star.title = r.fav_item ? 'Unstar this item' : 'Star this item';
     star.setAttribute('aria-label', star.title); star.setAttribute('aria-pressed', String(r.fav_item));
-    star.onclick = async e => {
-      e.stopPropagation();
-      await api(`/api/items/${r.item_id}/favourite`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ favourite: !r.fav_item }) });
-      await loadMarkets();
-    };
+    star.onclick = e => { e.stopPropagation(); toggleFavItem(r.item_id, !r.fav_item); };
     tr.children[0].append(star, document.createTextNode(r.name || r.name_ml));
     if (r.fav_item) {   // pulled out of its section, so say where it came from
       const parts = [];
@@ -322,17 +451,21 @@ async function loadRates(marketId) {
 let searchTimer;
 el('q').oninput = () => {
   clearTimeout(searchTimer);
-  const q = el('q').value.trim();
-  if (q.length < 2) { el('results').style.display = 'none'; return; }
+  const raw = el('q').value.trim().replace(/[,()"\\%]/g, ' ').trim();   // PostgREST filter delimiters
+  if (raw.length < 2) { el('results').style.display = 'none'; return; }
   searchTimer = setTimeout(async () => {
-    const rows = await api('/api/items?q=' + encodeURIComponent(q));
+    const pat = `%${raw}%`;
+    const rows = await q(sb.from('items').select('id,name,name_ml,section,markets(name,rank)')
+      .or(`name.ilike.${pat},name_ml.ilike.${pat},section.ilike.${pat}`).limit(60));
+    rows.sort((a, b) => (a.markets.rank - b.markets.rank) || (a.id - b.id));
     const box = el('results'); box.innerHTML = '';
     for (const r of rows) {
+      const market = r.markets.name;
       const d = document.createElement('div');
       d.textContent = `${r.name || r.name_ml} `;
-      const s = document.createElement('small'); s.textContent = `${r.name_ml} · ${r.market}${r.section && r.section !== r.market ? ' / ' + r.section : ''}`;
+      const s = document.createElement('small'); s.textContent = `${r.name_ml} · ${market}${r.section && r.section !== market ? ' / ' + r.section : ''}`;
       d.appendChild(s);
-      d.onclick = () => { addSeries({ id: r.id, name: r.name, name_ml: r.name_ml, market: r.market }); box.style.display = 'none'; el('q').value = ''; };
+      d.onclick = () => { addSeries({ id: r.id, name: r.name, name_ml: r.name_ml, market }); box.style.display = 'none'; el('q').value = ''; };
       box.appendChild(d);
     }
     box.style.display = rows.length ? 'block' : 'none';
@@ -369,16 +502,16 @@ function renderChips() {
 async function loadChart() {
   renderChips();
   if (!selected.length) { if (chart) { chart.data.datasets = []; chart.data.labels = []; chart.update(); } return; }
-  const qs = selected.map(s => 'item_id=' + s.id).join('&') + '&days=' + days;
-  const d = await api('/api/history?' + qs);
+  const since = days > 0 ? new Date(Date.now() - days * 864e5).toISOString().slice(0, 10) : '1970-01-01';
+  const series = await Promise.all(selected.map(async s => ({ ...s, points: await q(sb.rpc('item_history', { p_item_id: s.id, p_since: since })) })));
   // Union of dates as category labels so series with gaps still line up by date.
-  const labels = [...new Set(d.series.flatMap(s => s.points.map(p => p.date)))].sort();
-  const datasets = d.series.map((s, i) => {
+  const labels = [...new Set(series.flatMap(s => s.points.map(p => p.date)))].sort();
+  const datasets = series.map((s, i) => {
     const byDate = new Map(s.points.map(p => [p.date, p]));
     return {
       label: `${s.name || s.name_ml} · ${s.market}`,
-      data: labels.map(l => { const p = byDate.get(l); return p ? p.price_low : null; }),
-      hi: labels.map(l => { const p = byDate.get(l); return p ? p.price_high : null; }),
+      data: labels.map(l => { const p = byDate.get(l); return p ? +p.price_low : null; }),
+      hi: labels.map(l => { const p = byDate.get(l); return p && p.price_high != null ? +p.price_high : null; }),
       borderColor: css(SERIES[i]), backgroundColor: css(SERIES[i]),
       borderWidth: 2, pointRadius: labels.length > 120 ? 0 : 2.5, pointHoverRadius: 5, tension: 0.15, spanGaps: true,
     };
@@ -426,7 +559,13 @@ function restyleChart() {
   renderChips();
 }
 
-loadStatus(); loadFeatured(); loadMarkets();
+// ---- boot: session first so the first render already knows who is signed in
+(async () => {
+  const { data } = await sb.auth.getSession();
+  user = data.session?.user ?? null;
+  renderAuth();
+  loadStatus(); loadFeatured(); loadMarkets();
+})();
 </script>
 </body>
 </html>
