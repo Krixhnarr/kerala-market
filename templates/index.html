@@ -88,6 +88,10 @@ th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--bord
 th { font-weight: 500; color: var(--text-2); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.sec td { background: var(--surface); color: var(--text-2); font-weight: 600; font-size: 13px; }
+tr.sec.fav td { color: var(--text); }
+tr.sec .star { border: 0; background: transparent; padding: 0 6px 0 0; color: var(--text-3); font-size: 14px; line-height: 1; vertical-align: -1px; }
+tr.sec .star:hover, tr.sec.fav .star { color: var(--s4); }
+tr.sec .mkt { color: var(--text-3); font-weight: 500; }
 tr.row { cursor: pointer; }
 tr.row:hover td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 tr.row.sel td { background: color-mix(in srgb, var(--accent) 16%, transparent); }
@@ -128,7 +132,7 @@ tr.row.sel td { background: color-mix(in srgb, var(--accent) 16%, transparent); 
 
   <section class="card">
     <h2>Today's rates <span class="muted" id="rates-date"></span></h2>
-    <p class="hint" style="margin:-6px 0 8px">Star a market to keep it first and make it the default view.</p>
+    <p class="hint" style="margin:-6px 0 8px">Star a market to keep it first and make it the default view. Star a sub-market (section heading) to pin it to the top of its market and collect it under ★ Favourites.</p>
     <div class="tabs" id="tabs"></div>
     <table>
       <thead><tr><th>Item</th><th class="hide-sm">Malayalam</th><th class="num">Price (₹)</th><th class="num">Change</th></tr></thead>
@@ -203,10 +207,19 @@ async function loadFeatured() {
 }
 
 // ---- markets + rates table
+const FAV = 'fav';   // pseudo-market id for the "★ Favourites" tab
 async function loadMarkets() {
-  const ms = await api('/api/markets');   // favourites first, then Manorama's order
+  const [ms, favSections] = await Promise.all([api('/api/markets'), api('/api/favourite-sections')]);
   const tabs = el('tabs'); tabs.innerHTML = '';
   let sepDone = false;
+  if (favSections.length) {
+    const t = document.createElement('span'); t.className = 'tab fav'; t.dataset.id = FAV; t.dataset.name = 'Favourites';
+    const b = document.createElement('button'); b.textContent = `★ Favourites (${favSections.length})`; b.onclick = () => loadRates(FAV);
+    b.style.paddingRight = '11px';
+    t.appendChild(b); tabs.appendChild(t);
+  } else if (currentMarket === FAV) {
+    currentMarket = null;   // last starred section was removed
+  }
   for (const m of ms) {
     if (!m.favourite && !sepDone && ms.some(x => x.favourite)) {
       const sep = document.createElement('span'); sep.className = 'sep'; tabs.appendChild(sep); sepDone = true;
@@ -229,21 +242,38 @@ async function loadRates(marketId) {
   if (marketId == null) return;
   currentMarket = marketId;
   let marketName = '';
+  const favView = marketId === FAV;
   for (const t of el('tabs').querySelectorAll('.tab')) {
-    const on = +t.dataset.id === marketId;
+    const on = favView ? t.dataset.id === FAV : +t.dataset.id === marketId;
     t.classList.toggle('on', on);
     if (on) marketName = t.dataset.name;
   }
-  const d = await api(`/api/rates?market_id=${marketId}`);
+  const d = await api(favView ? '/api/rates?favourites=1' : `/api/rates?market_id=${marketId}`);
   el('rates-date').textContent = d.date ? `· ${d.date}` : '';
   const tb = el('rates'); tb.innerHTML = '';
   let sec = null;
   for (const r of d.rates) {
-    if (r.section !== sec) {
-      sec = r.section;
-      const tr = document.createElement('tr'); tr.className = 'sec';
+    const key = r.market_id + '|' + r.section;
+    if (key !== sec) {
+      sec = key;
+      const tr = document.createElement('tr'); tr.className = 'sec' + (r.fav_section ? ' fav' : '');
       const td = document.createElement('td'); td.colSpan = 4;
-      td.textContent = r.section + (r.section_ml && r.section_ml !== r.section ? ' · ' + r.section_ml : '');
+      if (r.section) {
+        const star = document.createElement('button'); star.className = 'star';
+        star.textContent = r.fav_section ? '★' : '☆';
+        star.title = r.fav_section ? 'Unstar this sub-market' : 'Star this sub-market';
+        star.setAttribute('aria-label', star.title); star.setAttribute('aria-pressed', String(r.fav_section));
+        star.onclick = async e => {
+          e.stopPropagation();
+          await api(`/api/markets/${r.market_id}/sections/favourite`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section: r.section, favourite: !r.fav_section }) });
+          await loadMarkets();   // refreshes the ★ Favourites tab and re-renders the table
+        };
+        td.appendChild(star);
+      }
+      if (favView) {
+        const mk = document.createElement('span'); mk.className = 'mkt'; mk.textContent = r.market + ' · '; td.appendChild(mk);
+      }
+      td.appendChild(document.createTextNode((r.section || 'Other') + (r.section_ml && r.section_ml !== r.section ? ' · ' + r.section_ml : '')));
       tr.appendChild(td); tb.appendChild(tr);
     }
     const tr = document.createElement('tr'); tr.className = 'row'; tr.dataset.id = r.item_id;
@@ -254,7 +284,7 @@ async function loadRates(marketId) {
     tr.children[1].textContent = r.name_ml;
     tr.children[2].textContent = r.price_low == null ? (r.raw || '—') : fmt(r.price_low) + range;
     if (r.price_low == null) tr.children[2].classList.add('muted');
-    tr.onclick = () => addSeries({ id: r.item_id, name: r.name, name_ml: r.name_ml, market: marketName });
+    tr.onclick = () => addSeries({ id: r.item_id, name: r.name, name_ml: r.name_ml, market: r.market });
     tb.appendChild(tr);
   }
 }

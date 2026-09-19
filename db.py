@@ -6,6 +6,7 @@ Tables
   rates(date, item_id, price_low, price_high, raw)           -- one row per item per day
   fetch_log(fetched_at, rate_date, rows, status, message)
   favourites(market_id)                                      -- starred markets
+  favourite_sections(market_id, section)                     -- starred sub-markets within a market
 """
 from __future__ import annotations
 
@@ -46,6 +47,11 @@ CREATE TABLE IF NOT EXISTS rates (
 CREATE INDEX IF NOT EXISTS rates_item_date ON rates(item_id, date);
 CREATE TABLE IF NOT EXISTS favourites (
     market_id INTEGER PRIMARY KEY REFERENCES markets(id)
+);
+CREATE TABLE IF NOT EXISTS favourite_sections (
+    market_id INTEGER NOT NULL REFERENCES markets(id),
+    section   TEXT    NOT NULL,
+    PRIMARY KEY (market_id, section)
 );
 CREATE TABLE IF NOT EXISTS fetch_log (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

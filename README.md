@@ -30,8 +30,10 @@ are missing, then keeps fetching at 08:30, 12:30 and 18:30 (IST) while it runs.
 per item per day, newest wins.
 
 Click ☆ on a market tab to star it. Starred markets are listed first and the
-first one is the default view. Favourites are stored in the database, so they
-follow the app rather than the browser.
+first one is the default view. Inside a market, click ☆ on a sub-market heading
+(e.g. Kannur → Payyannur) to pin that section to the top of its market; all
+starred sub-markets are also collected under a "★ Favourites" tab. Favourites
+are stored in the database, so they follow the app rather than the browser.
 
 ## Backfill history
 
@@ -63,7 +65,10 @@ schtasks /create /tn "ManoramaMarket" /sc daily /st 09:00 /tr "\"C:\path\to\.ven
 | `GET /api/status` | latest date, days stored, last fetch result |
 | `GET /api/markets` | markets: favourites first, then Manorama's order (`favourite` flag) |
 | `PUT /api/markets/<id>/favourite` | body `{"favourite": true\|false}` — star/unstar a market |
-| `GET /api/rates?market_id=37&date=2026-09-19` | one market's rates for a day, with day-over-day change |
+| `GET /api/rates?market_id=37&date=2026-09-19` | one market's rates for a day, with day-over-day change (starred sections first) |
+| `GET /api/rates?favourites=1` | rates from starred sub-markets across all markets |
+| `GET /api/favourite-sections` | list of starred sub-markets |
+| `PUT /api/markets/<id>/sections/favourite` | body `{"section": "Payyannur", "favourite": true}` — star/unstar a sub-market |
 | `GET /api/history?item_id=254&item_id=256&days=365` | price series (`days=0` for all) |
 | `GET /api/items?q=areca` | search items (English or Malayalam) |
 | `GET /api/featured` | the pinned tiles (edit `FEATURED` in `app.py`) |
