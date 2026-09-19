@@ -1,0 +1,7 @@
+.venv/
+market.db
+market.db-journal
+backfill.log
+backfill.err
+__pycache__/
+.claude/
