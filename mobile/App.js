@@ -13,11 +13,13 @@ import Drawer from './components/Drawer';
 import MarketScreen from './screens/MarketScreen';
 import ChartScreen from './screens/ChartScreen';
 import SalesScreen from './screens/SalesScreen';
+import SellerScreen from './screens/SellerScreen';
+import AdminScreen from './screens/AdminScreen';
 import AuthScreen from './screens/AuthScreen';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-const TABS = [['market', 'Market'], ['chart', 'Charts'], ['sales', 'My Sales']];
+const BASE_TABS = [['market', 'Market'], ['chart', 'Charts'], ['sales', 'My Sales']];
 
 export default function App() {
   return <SafeAreaProvider><Root /></SafeAreaProvider>;
@@ -33,6 +35,21 @@ function Root() {
   const [auth, setAuth] = useState({ open: false, message: '' });
   const [selected, setSelected] = useState([]);   // items on the chart
   const [households, setHouseholds] = useState([]);
+  const [role, setRole] = useState('buyer');     // buyer | seller | admin (profiles.role)
+  const [shop, setShop] = useState(null);        // the user's shop application, if any
+
+  // Seller tab appears once the user has applied (or is a seller/admin); Admin tab for the admin.
+  const TABS = [...BASE_TABS,
+    ...(shop || role !== 'buyer' ? [['seller', 'Post rates']] : []),
+    ...(role === 'admin' ? [['admin', 'Admin']] : [])];
+
+  const reloadShop = useCallback(async () => {
+    if (!user) { setShop(null); setRole('buyer'); return; }
+    try { const [r, sh] = await Promise.all([api.myRole(), api.myShop()]); setRole(r); setShop(sh); }
+    catch { setRole('buyer'); setShop(null); }   // community tables not migrated yet -> plain buyer app
+  }, [user]);
+  useEffect(() => { reloadShop(); }, [reloadShop]);
+  useEffect(() => { if (!TABS.some(([id]) => id === tab)) setTab('market'); }, [TABS.length]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
@@ -92,6 +109,8 @@ function Root() {
         {tab === 'market' && <MarketScreen user={user} requireUser={requireUser} onChartItem={onChartItem} />}
         {tab === 'chart' && <ChartScreen selected={selected} setSelected={setSelected} user={user} />}
         {tab === 'sales' && <SalesScreen user={user} openAuth={() => openAuth()} households={households} onChartItem={onChartItem} />}
+        {tab === 'seller' && <SellerScreen user={user} openAuth={() => openAuth()} shop={shop} onShopChange={reloadShop} />}
+        {tab === 'admin' && <AdminScreen />}
       </View>
 
       <View style={[s.tabbar, { backgroundColor: t.surface, borderTopColor: t.line, paddingBottom: Math.max(insets.bottom, 10) + 6 }]}>
@@ -106,7 +125,8 @@ function Root() {
         })}
       </View>
 
-      <Drawer visible={menu} onClose={closeMenu} user={user} openAuth={openAuth}
+      <Drawer visible={menu} onClose={closeMenu} user={user} openAuth={openAuth} role={role} shop={shop}
+        goSeller={() => { closeMenu(); if (!user) openAuth('Sign in to register your shop.'); else setTab('seller'); }}
         signOut={() => supabase.auth.signOut()} households={households} reloadHouseholds={reloadHouseholds} />
       <AuthScreen visible={auth.open} message={auth.message} onClose={() => setAuth({ open: false, message: '' })} />
     </View>

@@ -9,7 +9,7 @@ import { Label, Button, Input } from './ui';
 // Slide-in panel from the left: account, households, alerts, about.
 // Rendered as an always-mounted overlay (not a Modal) so the slide animation
 // has a mounted view to drive; when closed it is off-screen and ignores touches.
-export default function Drawer({ visible, onClose, user, openAuth, signOut, households, reloadHouseholds }) {
+export default function Drawer({ visible, onClose, user, openAuth, signOut, households, reloadHouseholds, role = 'buyer', shop = null, goSeller }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -85,6 +85,15 @@ export default function Drawer({ visible, onClose, user, openAuth, signOut, hous
             )}
           </Section>
 
+          <Section title="Shopkeepers" t={t}>
+            <Text style={{ color: t.secondary, fontSize: 13, marginBottom: 10, fontFamily: FONT.regular }}>
+              {role === 'admin' ? 'You are the admin: approve shops and single-source rates from the Admin tab.'
+                : shop ? `Your shop: ${shop.name} · ${shop.status}.`
+                : 'Run a shop in a local market? Register it and post the day\'s prices. Buyers only ever see the market\'s combined rate.'}
+            </Text>
+            <Button title={shop || role !== 'buyer' ? 'Open Post rates' : 'Register my shop'} dark small onPress={goSeller} style={{ alignSelf: 'flex-start' }} />
+          </Section>
+
           <Section title="Households" t={t}>
             <Text style={{ color: t.secondary, fontSize: 13, marginBottom: 8, fontFamily: FONT.regular }}>Keep sales from different houses or farms apart. Tap a name to rename it.</Text>
             {!user ? <Text style={{ color: t.muted, fontSize: 13 }}>Sign in to add households.</Text> : (
@@ -120,10 +129,10 @@ export default function Drawer({ visible, onClose, user, openAuth, signOut, hous
 
           <Section title="About" t={t}>
             <Text style={{ color: t.secondary, fontSize: 13, lineHeight: 18, fontFamily: FONT.regular }}>
-              Daily Kerala commodity rates — coconut, copra, arecanut, pepper, rubber and more — with price history back to 2025.
-              Rates are published once per trading day; there is no update on Sundays and market holidays.
+              Two kinds of price, kept apart: farm-gate rates (what traders pay farmers, from the daily paper, no update on Sundays)
+              and shop rates (what buyers pay at a local market, reported by shopkeepers there and combined per market).
             </Text>
-            <Text style={{ color: t.muted, fontSize: 12, marginTop: 8, fontFamily: FONT.regular }}>Version 1.1.1</Text>
+            <Text style={{ color: t.muted, fontSize: 12, marginTop: 8, fontFamily: FONT.regular }}>Version 1.2.0</Text>
           </Section>
         </ScrollView>
       </Animated.View>

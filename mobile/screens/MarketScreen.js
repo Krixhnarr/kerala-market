@@ -4,6 +4,7 @@ import { useTheme, FONT } from '../lib/theme';
 import * as api from '../lib/api';
 import { itemIcon } from '../lib/icons';
 import { Card, H2, Hint, Star, Change, Chip, Label, Input } from '../components/ui';
+import CommunityRates from '../components/CommunityRates';
 
 const FAV = 'fav';
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -20,6 +21,8 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus 
   const [refreshing, setRefreshing] = useState(false);
   const [q, setQ] = useState('');
   const [found, setFound] = useState(null);   // all-market search results
+  const [source, setSource] = useState('farmgate');   // 'farmgate' (paper) | 'shops' (community)
+  const [reloads, setReloads] = useState(0);
 
   // Search across every market: item names -> latest price for each.
   useEffect(() => {
@@ -71,7 +74,7 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus 
     loadRows(id);
   }, [ordered, current, favCount, loadRows]);
 
-  const refresh = async () => { setRefreshing(true); await loadTop(); await loadRows(current); setRefreshing(false); };
+  const refresh = async () => { setRefreshing(true); setReloads(n => n + 1); await loadTop(); await loadRows(current); setRefreshing(false); };
   const afterToggle = async () => { await loadTop(); await loadRows(current); };
 
   const toggleMarket = (m) => async () => {
@@ -118,7 +121,22 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus 
         {q ? <Pressable onPress={() => setQ('')} hitSlop={10} style={{ paddingHorizontal: 8 }}><Text style={{ color: t.muted, fontSize: 20 }}>×</Text></Pressable> : null}
       </View>
 
-      {found && (
+      {/* Two different quantities, kept apart: the paper's farm-gate rate vs. what shops charge. */}
+      <View style={[s.sourceRow, { borderColor: t.line, backgroundColor: t.surface }]}>
+        {[['farmgate', 'Farm-gate', 'paid to farmers · daily paper'], ['shops', 'Shop rates', 'paid by buyers · shopkeepers']].map(([id, title, sub]) => {
+          const on = source === id;
+          return (
+            <Pressable key={id} onPress={() => setSource(id)} style={[s.sourceBtn, { backgroundColor: on ? t.ink : 'transparent' }]}>
+              <Text style={{ color: on ? t.bg : t.ink, fontSize: 13, fontFamily: FONT.bold, textTransform: 'uppercase', letterSpacing: 0.4 }}>{title}</Text>
+              <Text style={{ color: on ? t.bg : t.muted, fontSize: 10, fontFamily: FONT.regular, opacity: on ? 0.8 : 1 }} numberOfLines={1}>{sub}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {source === 'shops' ? <CommunityRates q={q} reloadKey={reloads} /> : null}
+
+      {source === 'farmgate' && found && (
         <Card>
           <H2 right={`${found.length} found`}>All markets</H2>
           {!found.length ? <Text style={{ color: t.muted, paddingVertical: 8, fontFamily: FONT.regular }}>Nothing matches “{q.trim()}”.</Text>
@@ -144,11 +162,11 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus 
         </Card>
       )}
 
-      <Card>
-        <H2 right={status?.days ? `${status.days} days of history` : ''}>Rates</H2>
-        <Hint>{user
-          ? 'Star a market to keep it first. Star a sub-market or an item to pin it to the top and collect it under Favourites.'
-          : 'Sign in from the menu to star markets, sub-markets and items — your favourites are saved to your account.'}</Hint>
+      {source === 'farmgate' && <Card>
+        <H2 right={status?.days ? `${status.days} days of history` : ''}>Farm-gate rates</H2>
+        <Hint>What traders pay farmers, as printed in the daily paper. {user
+          ? 'Star a market to keep it first; star a sub-market or an item to pin it to the top under Favourites.'
+          : 'Sign in from the menu to star markets, sub-markets and items.'}</Hint>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabs}>
           {favCount > 0 && <Chip title={`★ Favourites (${favCount})`} on={favView} onPress={() => setCurrent(FAV)} />}
@@ -201,7 +219,7 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus 
             })}
           </View>
         ))}
-      </Card>
+      </Card>}
     </ScrollView>
   );
 }
@@ -209,7 +227,9 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus 
 const s = StyleSheet.create({
   wrap: { padding: 12, paddingBottom: 40 },
   status: { fontSize: 12, marginBottom: 10, fontFamily: FONT.medium, letterSpacing: 0.2 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  sourceRow: { flexDirection: 'row', borderWidth: 1, borderRadius: 2, padding: 3, marginBottom: 12 },
+  sourceBtn: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 2 },
   tabs: { flexDirection: 'row', gap: 6, paddingBottom: 12 },
   secRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 12, paddingBottom: 4, borderTopWidth: 2, marginTop: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, borderBottomWidth: 1 },

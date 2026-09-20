@@ -66,6 +66,45 @@ export const ledgerEntries = async (householdId) => {
 export const addLedgerEntry = async (entry) => unwrap(await supabase.from('ledger_entries').insert(entry));
 export const deleteLedgerEntry = async (id) => unwrap(await supabase.from('ledger_entries').delete().eq('id', id));
 
+// ---- community shop rates (see migration 20260921100000_community.sql)
+export const myRole = async () => (unwrap(await supabase.from('profiles').select('role').maybeSingle()))?.role ?? 'buyer';
+export const communityMarkets = async () => unwrap(await supabase.from('community_markets').select('id,district,name,name_ml').eq('active', true).order('district').order('name'));
+export const communityItems = async () => unwrap(await supabase.from('community_items').select('id,name,name_ml,unit').eq('active', true).order('sort').order('name'));
+export const communityRates = async (marketId) => unwrap(await supabase.rpc('community_market_rates', { p_market_id: marketId ?? null }));
+export const communityHistory = async (marketId, itemId, side, since) =>
+  unwrap(await supabase.rpc('community_rate_history', { p_market_id: marketId, p_item_id: itemId, p_side: side, p_since: since }));
+
+export const myShop = async () => unwrap(await supabase.from('shops').select('id,market_id,name,phone,status,reject_reason,community_markets(name,district)').maybeSingle());
+export const applyShop = async (userId, marketId, name, phone) => unwrap(await supabase.from('shops').insert({ user_id: userId, market_id: marketId, name, phone }));
+export const myPosts = async (shopId, sinceIso) => unwrap(await supabase.from('shop_rates')
+  .select('id,item_id,side,price,rate_date,status,reject_reason,posted_at').eq('shop_id', shopId).gte('rate_date', sinceIso)
+  .order('posted_at', { ascending: false }));
+export const postRates = async (rows) => unwrap(await supabase.from('shop_rates').insert(rows));
+
+// admin
+export const adminPendingRates = async () => unwrap(await supabase.rpc('admin_pending_rates'));
+export const adminPendingShops = async () => unwrap(await supabase.from('shops')
+  .select('id,user_id,name,phone,created_at,community_markets(name,district)').eq('status', 'pending').order('created_at'));
+export const reviewRate = async (id, approve, reason = '') => unwrap(await supabase.from('shop_rates')
+  .update({ status: approve ? 'published' : 'rejected', reject_reason: reason, reviewed_at: new Date().toISOString() }).eq('id', id));
+export const reviewShop = async (shop, approve, reason = '') => {
+  unwrap(await supabase.from('shops').update({ status: approve ? 'approved' : 'rejected', reject_reason: reason, reviewed_at: new Date().toISOString() }).eq('id', shop.id));
+  if (approve) unwrap(await supabase.from('profiles').update({ role: 'seller' }).eq('user_id', shop.user_id).eq('role', 'buyer'));
+};
+export const addCommunityMarket = async (district, name, name_ml = '') => unwrap(await supabase.from('community_markets').insert({ district, name, name_ml }));
+export const addCommunityItem = async (name, name_ml = '', unit = 'kg') => unwrap(await supabase.from('community_items').insert({ name, name_ml, unit }));
+
+// "3 h ago" / "yesterday" for a timestamp.
+export const ago = (ts) => {
+  if (!ts) return '';
+  const m = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+  if (m < 60) return `${Math.max(m, 1)} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'yesterday' : `${d} days ago`;
+};
+
 // ---- formatting shared by screens
 export const fmt = (n) => n == null ? '—' : new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(+n);
 export const perKg = (unit, low, high) => unit !== 'quintal' || low == null ? ''
