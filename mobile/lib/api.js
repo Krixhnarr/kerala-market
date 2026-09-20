@@ -17,6 +17,13 @@ export const searchItems = async (q) => {
     .or(`name.ilike.${pat},name_ml.ilike.${pat},section.ilike.${pat}`).limit(60));
   return rows.sort((a, b) => (a.markets.rank - b.markets.rank) || (a.id - b.id));
 };
+// Every item (a few hundred rows) for the sales item picker; filtered client-side.
+export const allItems = async () => {
+  const rows = unwrap(await supabase.from('items').select('id,name,name_ml,section,unit,markets(name,rank)').limit(2000));
+  return rows.sort((a, b) => (a.markets.rank - b.markets.rank) || (a.id - b.id));
+};
+// Latest price + day change for a set of item ids (search results).
+export const itemSummary = async (ids) => ids.length ? unwrap(await supabase.rpc('item_summary', { p_item_ids: ids })) : [];
 // unit per item id, used to scale a ₹/kg sale onto a per-quintal chart.
 export const itemUnits = async (ids) => {
   if (!ids.length) return {};
@@ -63,6 +70,15 @@ export const deleteLedgerEntry = async (id) => unwrap(await supabase.from('ledge
 export const fmt = (n) => n == null ? '—' : new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(+n);
 export const perKg = (unit, low, high) => unit !== 'quintal' || low == null ? ''
   : `≈ ₹${fmt(low / 100)}${high != null && +high !== +low ? '–' + fmt(high / 100) : ''}/kg`;
+// Suffix printed after a price: gold is quoted per pavan (sovereign, 8 g).
+export const unitLabel = (unit) => unit === 'sovereign' ? '/pavan' : unit === 'quintal' ? '/quintal' : '';
+// Second line under a price: the unit plus the ₹/kg estimate where it applies.
+export const unitLine = (unit, low, high) => {
+  if (low == null) return '';
+  if (unit === 'sovereign') return 'per pavan (8 g)';
+  if (unit === 'quintal') return `per quintal · ${perKg(unit, low, high)}`;
+  return '';
+};
 // "2026-09-19" -> "Sat 19 Sep"
 export const niceDate = (iso) => {
   if (!iso) return '—';

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, SafeAreaView, Platform, StatusBar as RNStatusBar, AppState } from 'react-native';
+import { View, Text, Pressable, StyleSheet, AppState } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import * as SplashScreen from 'expo-splash-screen';
@@ -19,7 +20,12 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 const TABS = [['market', 'Market'], ['chart', 'Charts'], ['sales', 'My Sales']];
 
 export default function App() {
+  return <SafeAreaProvider><Root /></SafeAreaProvider>;
+}
+
+function Root() {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const [fontsReady] = useFonts({ InterTight_400Regular, InterTight_500Medium, InterTight_700Bold, InterTight_800ExtraBold });
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState('market');
@@ -53,6 +59,7 @@ export default function App() {
   useEffect(() => { reloadHouseholds(); }, [reloadHouseholds]);
 
   const openAuth = useCallback((message = '') => setAuth({ open: true, message }), []);
+  const closeMenu = useCallback(() => setMenu(false), []);
   const requireUser = useCallback(() => {
     if (user) return true;
     openAuth('Sign in to save favourites.');
@@ -67,16 +74,18 @@ export default function App() {
 
   if (!fontsReady) return null;
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: t.accent }]}>
+    <View style={[s.root, { backgroundColor: t.accent, paddingTop: insets.top }]}>
       <StatusBar style="light" />
       <View style={[s.header, { backgroundColor: t.accent }]}>
         <Pressable onPress={() => setMenu(true)} hitSlop={12} style={s.menuBtn} accessibilityRole="button" accessibilityLabel="Menu">
-          <View style={[s.bar, { backgroundColor: t.onAccent }]} />
-          <View style={[s.bar, { backgroundColor: t.onAccent, width: 18 }]} />
-          <View style={[s.bar, { backgroundColor: t.onAccent }]} />
+          <View style={{ gap: 4 }}>
+            <View style={[s.bar, { backgroundColor: t.onAccent }]} />
+            <View style={[s.bar, { backgroundColor: t.onAccent, width: 18 }]} />
+            <View style={[s.bar, { backgroundColor: t.onAccent }]} />
+          </View>
+          <Text style={[s.menuWord, { color: t.onAccent }]}>Menu</Text>
         </Pressable>
-        <Text style={[s.title, { color: t.onAccent }]}>Kerala Market</Text>
-        <Text style={[s.menuWord, { color: t.onAccent }]}>Menu</Text>
+        <Text style={[s.title, { color: t.onAccent }]} numberOfLines={1}>Kerala Market</Text>
       </View>
 
       <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -85,32 +94,32 @@ export default function App() {
         {tab === 'sales' && <SalesScreen user={user} openAuth={() => openAuth()} households={households} onChartItem={onChartItem} />}
       </View>
 
-      <View style={[s.tabbar, { backgroundColor: t.surface, borderTopColor: t.line }]}>
+      <View style={[s.tabbar, { backgroundColor: t.surface, borderTopColor: t.line, paddingBottom: Math.max(insets.bottom, 10) + 6 }]}>
         {TABS.map(([id, label]) => {
           const on = tab === id;
           return (
             <Pressable key={id} onPress={() => setTab(id)} style={s.tabBtn} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-              <View style={{ height: 3, alignSelf: 'stretch', backgroundColor: on ? t.accent : 'transparent', marginBottom: 8 }} />
+              <View style={{ height: 3, alignSelf: 'stretch', backgroundColor: on ? t.accent : 'transparent', marginBottom: 10 }} />
               <Text style={{ color: on ? t.ink : t.muted, fontSize: 12, fontFamily: FONT.bold, letterSpacing: 1, textTransform: 'uppercase' }}>{label}</Text>
             </Pressable>
           );
         })}
       </View>
 
-      <Drawer visible={menu} onClose={() => setMenu(false)} user={user} openAuth={openAuth}
+      <Drawer visible={menu} onClose={closeMenu} user={user} openAuth={openAuth}
         signOut={() => supabase.auth.signOut()} households={households} reloadHouseholds={reloadHouseholds} />
       <AuthScreen visible={auth.open} message={auth.message} onClose={() => setAuth({ open: false, message: '' })} />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14 },
-  menuBtn: { gap: 4, paddingVertical: 4 },
+  root: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14 },
+  menuBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingRight: 6 },
   bar: { width: 24, height: 2.5 },
-  title: { flex: 1, fontSize: 24, fontFamily: FONT.black, textTransform: 'uppercase', letterSpacing: -0.8 },
+  title: { flex: 1, fontSize: 24, fontFamily: FONT.black, textTransform: 'uppercase', letterSpacing: -0.8, textAlign: 'right' },
   menuWord: { fontSize: 11, fontFamily: FONT.bold, letterSpacing: 1.2, textTransform: 'uppercase', opacity: 0.9 },
-  tabbar: { flexDirection: 'row', borderTopWidth: 1, paddingBottom: 8 },
-  tabBtn: { flex: 1, alignItems: 'center', paddingBottom: 8 },
+  tabbar: { flexDirection: 'row', borderTopWidth: 1 },
+  tabBtn: { flex: 1, alignItems: 'center', paddingBottom: 6 },
 });

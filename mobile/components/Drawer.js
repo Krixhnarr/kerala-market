@@ -1,34 +1,42 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Modal, Pressable, Animated, StyleSheet, ScrollView, Switch, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, Animated, StyleSheet, ScrollView, Switch, Alert, BackHandler, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, FONT } from '../lib/theme';
 import * as api from '../lib/api';
 import * as notify from '../lib/notify';
 import { Label, Button, Input } from './ui';
 
 // Slide-in panel from the left: account, households, alerts, about.
+// Rendered as an always-mounted overlay (not a Modal) so the slide animation
+// has a mounted view to drive; when closed it is off-screen and ignores touches.
 export default function Drawer({ visible, onClose, user, openAuth, signOut, households, reloadHouseholds }) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const W = Math.min(320, width * 0.84);
+  const W = Math.min(320, Math.round(width * 0.84));
   const x = useRef(new Animated.Value(-W)).current;
-  const [shown, setShown] = useState(visible);
+  const fade = useRef(new Animated.Value(0)).current;
   const [alerts, setAlerts] = useState(false);
   const [newName, setNewName] = useState('');
   const [editing, setEditing] = useState(null);   // {id, name}
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (visible) {
-      setShown(true);
-      Animated.timing(x, { toValue: 0, duration: 220, useNativeDriver: true }).start();
-      notify.isEnabled().then(setAlerts);
-    } else {
-      Animated.timing(x, { toValue: -W, duration: 180, useNativeDriver: true }).start(() => setShown(false));
-    }
-  }, [visible, W, x]);
+    Animated.parallel([
+      Animated.timing(x, { toValue: visible ? 0 : -W, duration: visible ? 220 : 180, useNativeDriver: true }),
+      Animated.timing(fade, { toValue: visible ? 1 : 0, duration: 200, useNativeDriver: true }),
+    ]).start();
+    if (visible) notify.isEnabled().then(setAlerts);
+  }, [visible, W, x, fade]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
 
   const toggleAlerts = async (on) => {
-    if (on && !user) { openAuth('Sign in so we know which items you starred.'); return; }
+    if (on && !user) { onClose(); openAuth('Sign in so we know which items you starred.'); return; }
     const ok = await notify.setEnabled(on);
     setAlerts(on && ok);
     if (on && !ok) Alert.alert('Notifications blocked', 'Allow notifications for Kerala Market in Android settings, then try again.');
@@ -51,12 +59,13 @@ export default function Drawer({ visible, onClose, user, openAuth, signOut, hous
     { text: 'Delete', style: 'destructive', onPress: async () => { try { await api.deleteHousehold(h.id); await reloadHouseholds(); } catch (e) { setError(e.message); } } },
   ]);
 
-  if (!shown) return null;
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={s.backdrop} onPress={onClose} />
+    <View style={StyleSheet.absoluteFill} pointerEvents={visible ? 'auto' : 'none'}>
+      <Animated.View style={[s.backdrop, { opacity: fade }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
       <Animated.View style={[s.panel, { width: W, backgroundColor: t.surface, borderColor: t.line, transform: [{ translateX: x }] }]}>
-        <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[s.body, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 30 }]} keyboardShouldPersistTaps="handled">
           <View style={s.top}>
             <Text style={[s.brand, { color: t.accent }]}>Kerala{'\n'}Market</Text>
             <Pressable onPress={onClose} hitSlop={12}><Text style={{ color: t.ink, fontSize: 26, lineHeight: 28 }}>×</Text></Pressable>
@@ -114,11 +123,11 @@ export default function Drawer({ visible, onClose, user, openAuth, signOut, hous
               Daily Kerala commodity rates — coconut, copra, arecanut, pepper, rubber and more — with price history back to 2025.
               Rates are published once per trading day; there is no update on Sundays and market holidays.
             </Text>
-            <Text style={{ color: t.muted, fontSize: 12, marginTop: 8, fontFamily: FONT.regular }}>Version 1.1.0</Text>
+            <Text style={{ color: t.muted, fontSize: 12, marginTop: 8, fontFamily: FONT.regular }}>Version 1.1.1</Text>
           </Section>
         </ScrollView>
       </Animated.View>
-    </Modal>
+    </View>
   );
 }
 
@@ -133,8 +142,8 @@ function Section({ title, children, t }) {
 
 const s = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,.5)' },
-  panel: { position: 'absolute', top: 0, bottom: 0, left: 0, borderRightWidth: 1 },
-  body: { paddingTop: 48, paddingBottom: 30 },
+  panel: { position: 'absolute', top: 0, bottom: 0, left: 0, borderRightWidth: 1, elevation: 12 },
+  body: {},
   top: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 18 },
   brand: { fontSize: 30, lineHeight: 30, fontFamily: FONT.black, textTransform: 'uppercase', letterSpacing: -1 },
   section: { borderTopWidth: 1, paddingHorizontal: 18, paddingVertical: 16 },

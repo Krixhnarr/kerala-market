@@ -213,7 +213,7 @@ export default function ChartScreen({ selected, setSelected, user }) {
                       <View style={{ width: 10, height: 3, backgroundColor: t.series[si] }} />
                       <Text style={{ flex: 1, color: t.onPanel, fontSize: 13, fontFamily: FONT.medium }} numberOfLines={1}>{sr.name || sr.name_ml}</Text>
                       <Text style={{ color: t.onPanel, fontSize: 14, fontFamily: FONT.bold, fontVariant: ['tabular-nums'] }}>
-                        {p ? '₹' + api.fmt(p.price_low) + (p.price_high != null && +p.price_high !== +p.price_low ? '–' + api.fmt(p.price_high) : '') : '—'}
+                        {p ? '₹' + api.fmt(p.price_low) + (p.price_high != null && +p.price_high !== +p.price_low ? '–' + api.fmt(p.price_high) : '') + api.unitLabel(sr.unit) : '—'}
                       </Text>
                     </View>
                   );
@@ -230,7 +230,7 @@ export default function ChartScreen({ selected, setSelected, user }) {
           </View>
         )}
         {chart?.marks.length ? <Text style={{ color: t.muted, fontSize: 12, marginTop: 6, fontFamily: FONT.regular }}>◆ your sales from My Sales, placed at the ₹ per kg you received (× 100 on per-quintal charts).</Text> : null}
-        <Hint>Prices in ₹ as published (mostly per quintal = 100 kg; gold per sovereign). Where a range is printed, the lower value is charted.</Hint>
+        <Hint>Prices in ₹ as published (mostly per quintal = 100 kg; gold per pavan = 8 g). Where a range is printed, the lower value is charted.</Hint>
       </Card>
     </ScrollView>
   );

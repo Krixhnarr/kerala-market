@@ -4,6 +4,7 @@ import { useTheme, FONT } from '../lib/theme';
 import * as api from '../lib/api';
 import { itemIcon } from '../lib/icons';
 import { Card, H2, Hint, Button, Chip, Input, Stat, Label } from '../components/ui';
+import ItemPicker from '../components/ItemPicker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const ALL = 'all';
@@ -17,7 +18,7 @@ export default function SalesScreen({ user, openAuth, households, onChartItem })
   const [error, setError] = useState('');
   const [date, setDate] = useState(today());
   const [item, setItem] = useState({ name: '', id: null, unit: null });
-  const [results, setResults] = useState([]);
+  const [picking, setPicking] = useState(false);
   const [kg, setKg] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -31,13 +32,6 @@ export default function SalesScreen({ user, openAuth, households, onChartItem })
   useEffect(() => { load(); }, [load]);
   // A deleted household drops the filter back to All.
   useEffect(() => { if (hh !== ALL && !households.some(h => h.id === hh)) setHh(ALL); }, [households, hh]);
-
-  useEffect(() => {
-    const term = item.name.trim();
-    if (item.id || term.length < 2) { setResults([]); return; }
-    const h = setTimeout(async () => { try { setResults((await api.searchItems(term)).slice(0, 6)); } catch {} }, 250);
-    return () => clearTimeout(h);
-  }, [item]);
 
   const month = useMemo(() => {
     const ym = today().slice(0, 7);
@@ -74,6 +68,7 @@ export default function SalesScreen({ user, openAuth, households, onChartItem })
   );
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
       <View style={s.stats}>
         <Stat label="This month" value={`₹${api.fmt(Math.round(month.amt))}`} />
@@ -94,17 +89,13 @@ export default function SalesScreen({ user, openAuth, households, onChartItem })
         <Label>New entry</Label>
         <View style={s.formRow}>
           <Input value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" style={{ flex: 1 }} />
-          <Input value={item.name} onChangeText={v => setItem({ name: v, id: null, unit: null })} placeholder="Item (e.g. Arecanut)" style={{ flex: 1.4 }} />
+          <Pressable onPress={() => setPicking(true)} style={[s.pick, { borderColor: t.line, backgroundColor: t.bg, flex: 1.4 }]}>
+            <Text style={{ color: item.name ? t.ink : t.muted, fontSize: 14, fontFamily: FONT.regular, flex: 1 }} numberOfLines={1}>
+              {item.name ? `${itemIcon(item.name)}  ${item.name}` : 'Item — tap to choose'}
+            </Text>
+            <Text style={{ color: t.muted, fontSize: 12 }}>▾</Text>
+          </Pressable>
         </View>
-        {results.length > 0 && (
-          <View style={[s.results, { borderColor: t.line }]}>
-            {results.map(r => (
-              <Pressable key={r.id} onPress={() => { setItem({ name: r.name || r.name_ml, id: r.id, unit: r.unit }); setResults([]); }} style={[s.result, { borderBottomColor: t.line }]}>
-                <Text style={{ color: t.ink, fontSize: 13, fontFamily: FONT.medium }}>{itemIcon(r.name, r.name_ml)}  {r.name || r.name_ml} <Text style={{ color: t.muted }}>· {r.markets.name}</Text></Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
         <View style={s.formRow}>
           <Input value={kg} onChangeText={setKg} placeholder="Kg" keyboardType="decimal-pad" style={{ flex: 1 }} />
           <Input value={amount} onChangeText={setAmount} placeholder="Amount received (₹)" keyboardType="decimal-pad" style={{ flex: 1.4 }} />
@@ -138,6 +129,8 @@ export default function SalesScreen({ user, openAuth, households, onChartItem })
           })}
       </Card>
     </ScrollView>
+    <ItemPicker visible={picking} onClose={() => setPicking(false)} onPick={(it) => { setItem(it); setPicking(false); }} />
+    </View>
   );
 }
 
@@ -146,8 +139,7 @@ const s = StyleSheet.create({
   stats: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   tabs: { flexDirection: 'row', gap: 6, paddingBottom: 10 },
   formRow: { flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center' },
-  results: { borderWidth: 1, borderRadius: 2, marginBottom: 8, marginTop: -4, overflow: 'hidden' },
-  result: { paddingVertical: 7, paddingHorizontal: 10, borderBottomWidth: 1 },
+  pick: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 2, paddingHorizontal: 12, paddingVertical: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, borderBottomWidth: 1 },
   icon: { fontSize: 18, width: 26, textAlign: 'center' },
   name: { fontSize: 15, fontFamily: FONT.bold, letterSpacing: -0.2, textTransform: 'uppercase' },
