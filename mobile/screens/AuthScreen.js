@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Modal, StyleSheet, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
+import { View, Text, Modal, StyleSheet, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { useTheme } from '../lib/theme';
-import { Button } from '../components/ui';
+import { useTheme, FONT } from '../lib/theme';
+import { Button, Input, Label } from '../components/ui';
 
 // Email + password sign in / sign up, and a magic-link option. Shown as a
 // modal from wherever a signed-in action is attempted.
@@ -41,27 +41,26 @@ export default function AuthScreen({ visible, onClose, message }) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[s.sheet, { backgroundColor: t.surface, borderColor: t.line }]}>
+          <Label>Account</Label>
           <Text style={[s.title, { color: t.ink }]}>{signUp ? 'Create an account' : 'Sign in'}</Text>
-          {message ? <Text style={{ color: t.secondary, marginBottom: 10 }}>{message}</Text> : null}
-          <TextInput value={email} onChangeText={setEmail} placeholder="Email" placeholderTextColor={t.muted}
-            autoCapitalize="none" keyboardType="email-address" autoComplete="email"
-            style={[s.input, { color: t.ink, borderColor: t.line, backgroundColor: t.bg }]} />
-          <TextInput value={password} onChangeText={setPassword} placeholder="Password" placeholderTextColor={t.muted}
-            secureTextEntry autoComplete={signUp ? 'new-password' : 'current-password'}
-            style={[s.input, { color: t.ink, borderColor: t.line, backgroundColor: t.bg }]} />
+          {message ? <Text style={{ color: t.secondary, marginBottom: 10, fontFamily: FONT.regular }}>{message}</Text> : null}
+          <Input value={email} onChangeText={setEmail} placeholder="Email"
+            autoCapitalize="none" keyboardType="email-address" autoComplete="email" style={s.input} />
+          <Input value={password} onChangeText={setPassword} placeholder="Password"
+            secureTextEntry autoComplete={signUp ? 'new-password' : 'current-password'} style={s.input} />
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Button title={signUp ? 'Create account' : 'Sign in'} primary onPress={submit} disabled={busy} style={{ flex: 1 }} />
             <Button title="Email me a link" onPress={magic} style={{ flex: 1 }} />
           </View>
-          {msg ? <Text style={{ color: good ? t.up : t.down, fontSize: 13, marginTop: 10 }}>{msg}</Text> : null}
+          {msg ? <Text style={{ color: good ? t.up : t.down, fontSize: 13, marginTop: 10, fontFamily: FONT.regular }}>{msg}</Text> : null}
           <Pressable onPress={() => { setSignUp(!signUp); setMsg(''); }} style={{ marginTop: 14, alignItems: 'center' }}>
-            <Text style={{ color: t.secondary, fontSize: 13 }}>
+            <Text style={{ color: t.secondary, fontSize: 13, fontFamily: FONT.regular }}>
               {signUp ? 'Already have an account? ' : 'New here? '}
-              <Text style={{ color: t.accent }}>{signUp ? 'Sign in' : 'Create an account'}</Text>
+              <Text style={{ color: t.accent, fontFamily: FONT.bold }}>{signUp ? 'Sign in' : 'Create an account'}</Text>
             </Text>
           </Pressable>
           <Pressable onPress={onClose} style={{ marginTop: 10, alignItems: 'center' }}>
-            <Text style={{ color: t.muted, fontSize: 13 }}>Cancel</Text>
+            <Text style={{ color: t.muted, fontSize: 13, fontFamily: FONT.regular }}>Cancel</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -71,7 +70,7 @@ export default function AuthScreen({ visible, onClose, message }) {
 
 const s = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.45)', justifyContent: 'center', padding: 20 },
-  sheet: { borderRadius: 14, borderWidth: 1, padding: 22 },
-  title: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, marginBottom: 10 },
+  sheet: { borderRadius: 2, borderWidth: 1, padding: 22 },
+  title: { fontSize: 26, fontFamily: FONT.black, textTransform: 'uppercase', letterSpacing: -0.6, marginBottom: 12 },
+  input: { paddingVertical: 10, fontSize: 15, marginBottom: 10 },
 });

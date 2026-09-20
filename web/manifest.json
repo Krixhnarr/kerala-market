@@ -1,7 +1,7 @@
 {
   "name": "Kerala Market",
   "short_name": "Kerala Market",
-  "description": "Daily Kerala commodity rates from Malayala Manorama — coconut oil, copra, arecanut, pepper, rubber and more — with price history.",
+  "description": "Daily Kerala commodity rates — coconut oil, copra, arecanut, pepper, rubber and more — with price history.",
   "start_url": "./?source=pwa",
   "scope": "./",
   "display": "standalone",

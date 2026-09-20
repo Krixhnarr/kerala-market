@@ -3,7 +3,7 @@
 // opens instantly and works offline; anything under /rest/ or /auth/ (Supabase
 // data and sign-in) always goes to the network - rates and favourites must be
 // current, never served stale.
-const CACHE = "kerala-market-v2";
+const CACHE = "kerala-market-v3";
 const SHELL = [
   "./",
   "./index.html",
