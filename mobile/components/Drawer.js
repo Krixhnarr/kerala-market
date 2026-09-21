@@ -133,7 +133,7 @@ export default function Drawer({ visible, onClose, user, openAuth, signOut, hous
               Two kinds of price, kept apart: farm-gate rates (what traders pay farmers, from the daily paper, no update on Sundays)
               and shop rates (what buyers pay at a local market, reported by shopkeepers there and combined per market).
             </Text>
-            <Text style={{ color: t.muted, fontSize: 12, marginTop: 8, fontFamily: FONT.regular }}>Version 1.2.1</Text>
+            <Text style={{ color: t.muted, fontSize: 12, marginTop: 8, fontFamily: FONT.regular }}>Version 1.2.2</Text>
           </Section>
         </ScrollView>
       </Animated.View>

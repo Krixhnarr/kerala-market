@@ -119,6 +119,22 @@ export const unitLine = (unit, low, high) => {
   if (unit === 'quintal') return `per quintal · ${perKg(unit, low, high)}`;
   return '';
 };
+// What to print above the rates so a newspaper reader isn't misled by the date.
+// Rates carry the market day they belong to; a day's own figures appear around
+// midday, and Sundays/holidays have none - so a morning reader sees the previous
+// trading day, exactly as the printed paper does.
+export const dateNotice = (latestIso, fetchedAt) => {
+  if (!latestIso) return { title: 'Loading…', body: '' };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const latest = new Date(latestIso + 'T00:00:00');
+  const gap = Math.round((today - latest) / 864e5);
+  const dow = today.getDay();
+  if (gap <= 0) return { title: `Today's rates · ${niceDate(latestIso)}`, body: `Published today${fetchedAt ? ', fetched ' + ago(fetchedAt) : ''}.` };
+  const why = dow === 0 ? 'No trading on Sundays — Saturday\'s rates stand until Monday.'
+    : gap === 1 ? 'Like the morning paper, this is the most recent trading day\'s rate; today\'s own figures come out around midday.'
+    : 'Most recent trading day — no trading since (Sunday or holiday). Like the morning paper; today\'s own figures come out around midday.';
+  return { title: `Rates for ${niceDate(latestIso)}`, body: why };
+};
 // "2026-09-19" -> "Sat 19 Sep"
 export const niceDate = (iso) => {
   if (!iso) return '—';

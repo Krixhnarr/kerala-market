@@ -450,9 +450,18 @@ el('ledger-form').onsubmit = async e => {
 async function loadStatus() {
   const [s] = await q(sb.rpc('data_status'));
   if (!s || !s.latest_date) { el('status').textContent = 'No data yet'; return; }
-  let txt = `Latest: ${s.latest_date} · ${s.days} days of history`;
-  if (s.last_fetch_at) txt += ` · updated ${new Date(s.last_fetch_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`;
-  el('status').textContent = txt;
+  // Rates carry the market day they belong to; a day's own figures appear around
+  // midday and Sundays/holidays have none - so a morning reader sees the previous
+  // trading day, exactly as the printed paper does. Say so, or the date looks stale.
+  const nice = d => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const gap = Math.round((today - new Date(s.latest_date + 'T00:00:00')) / 864e5);
+  let txt;
+  if (gap <= 0) txt = `Today's rates · ${nice(s.latest_date)}`;
+  else if (today.getDay() === 0) txt = `Rates for ${nice(s.latest_date)} — no trading on Sundays; Saturday's rates stand until Monday`;
+  else if (gap === 1) txt = `Rates for ${nice(s.latest_date)} — the most recent trading day, as in the morning paper; today's figures come out around midday`;
+  else txt = `Rates for ${nice(s.latest_date)} — most recent trading day, no trading since (Sunday or holiday); today's figures come out around midday`;
+  el('status').textContent = `${txt} · ${s.days} days of history`;
 }
 
 // ---- featured tiles

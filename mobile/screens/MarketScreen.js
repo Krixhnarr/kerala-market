@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, RefreshControl } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme, FONT } from '../lib/theme';
 import * as api from '../lib/api';
 import { itemIcon } from '../lib/icons';
@@ -24,6 +25,9 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus,
   const [found, setFound] = useState(null);   // all-market search results
   const [source, setSource] = useState('farmgate');   // 'farmgate' (paper) | 'shops' (community)
   const [reloads, setReloads] = useState(0);
+  const [explain, setExplain] = useState(false);       // one-time "how to read the date" card
+  useEffect(() => { AsyncStorage.getItem('seen:dates').then(v => setExplain(v !== '1')).catch(() => {}); }, []);
+  const dismissExplain = () => { setExplain(false); AsyncStorage.setItem('seen:dates', '1').catch(() => {}); };
 
   // Search across every market: item names -> latest price for each.
   useEffect(() => {
@@ -113,15 +117,29 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus,
     return out;
   }, [rows, q]);
 
-  const stale = status?.latest_date && status.latest_date < todayIso();
-  const statusLine = error ? `Error: ${error}`
-    : !status?.latest_date ? 'Loading…'
-    : stale ? `Rates as of ${api.niceDate(status.latest_date)} · no new rates published yet today`
-    : `Updated today · ${api.niceDate(status.latest_date)}`;
+  const notice = api.dateNotice(status?.latest_date, status?.last_fetch_at);
 
   return (
     <ScrollView contentContainerStyle={s.wrap} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.accent} colors={[t.accent]} />}>
-      <Text style={[s.status, { color: error ? t.down : t.secondary }]}>{statusLine}</Text>
+      {error ? <Text style={[s.status, { color: t.down }]}>Error: {error}</Text> : null}
+      {source === 'farmgate' && (
+        <View style={[s.dateBlock, { borderLeftColor: t.accent }]}>
+          <Text style={[s.dateTitle, { color: t.ink }]}>{notice.title}</Text>
+          {notice.body ? <Text style={[s.dateBody, { color: t.secondary }]}>{notice.body}</Text> : null}
+        </View>
+      )}
+      {explain && source === 'farmgate' && (
+        <View style={[s.explain, { backgroundColor: t.panel }]}>
+          <Label color={t.onPanel} style={{ opacity: 0.7 }}>How to read the date</Label>
+          <Text style={{ color: t.onPanel, fontSize: 13, lineHeight: 19, fontFamily: FONT.regular }}>
+            Every rate is dated by the market day it belongs to — not the day you read it. A day's own figures are published around midday;
+            until then you see the previous trading day, the same figures as the morning newspaper. Markets are closed on Sundays and holidays, so a Saturday rate stands until Monday.
+          </Text>
+          <Pressable onPress={dismissExplain} hitSlop={8} style={{ alignSelf: 'flex-start', marginTop: 8 }}>
+            <Text style={{ color: t.accent, fontSize: 12, fontFamily: FONT.bold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Got it</Text>
+          </Pressable>
+        </View>
+      )}
 
       <View style={s.searchRow}>
         <Input value={q} onChangeText={setQ} placeholder="Search items — coconut, അടയ്ക്ക, gold…" style={{ flex: 1 }} returnKeyType="search" />
@@ -235,6 +253,10 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus,
 const s = StyleSheet.create({
   wrap: { padding: 12, paddingBottom: 40 },
   status: { fontSize: 12, marginBottom: 10, fontFamily: FONT.medium, letterSpacing: 0.2 },
+  dateBlock: { borderLeftWidth: 3, paddingLeft: 10, paddingVertical: 2, marginBottom: 12 },
+  dateTitle: { fontSize: 18, fontFamily: FONT.black, textTransform: 'uppercase', letterSpacing: -0.4 },
+  dateBody: { fontSize: 12, lineHeight: 17, fontFamily: FONT.regular, marginTop: 2 },
+  explain: { padding: 12, borderRadius: 2, marginBottom: 12 },
   searchRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   sourceRow: { flexDirection: 'row', borderWidth: 1, borderRadius: 2, padding: 3, marginBottom: 12 },
   sourceBtn: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 2 },
