@@ -48,7 +48,12 @@ function Root() {
     try { const [r, sh] = await Promise.all([api.myRole(), api.myShop()]); setRole(r); setShop(sh); }
     catch { setRole('buyer'); setShop(null); }   // community tables not migrated yet -> plain buyer app
   }, [user]);
-  useEffect(() => { reloadShop(); }, [reloadShop]);
+  useEffect(() => {
+    reloadShop();
+    // Role/shop can change server-side (admin approval, migration) while the app is open.
+    const sub = AppState.addEventListener('change', st => { if (st === 'active') reloadShop(); });
+    return () => sub.remove();
+  }, [reloadShop]);
   useEffect(() => { if (!TABS.some(([id]) => id === tab)) setTab('market'); }, [TABS.length]);
 
   useEffect(() => {
@@ -106,8 +111,8 @@ function Root() {
       </View>
 
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        {tab === 'market' && <MarketScreen user={user} requireUser={requireUser} onChartItem={onChartItem} />}
-        {tab === 'chart' && <ChartScreen selected={selected} setSelected={setSelected} user={user} />}
+        {tab === 'market' && <MarketScreen user={user} requireUser={requireUser} onChartItem={onChartItem} onRefresh={reloadShop} />}
+        {tab === 'chart' && <ChartScreen selected={selected} setSelected={setSelected} user={user} requireUser={requireUser} />}
         {tab === 'sales' && <SalesScreen user={user} openAuth={() => openAuth()} households={households} onChartItem={onChartItem} />}
         {tab === 'seller' && <SellerScreen user={user} openAuth={() => openAuth()} shop={shop} onShopChange={reloadShop} />}
         {tab === 'admin' && <AdminScreen />}

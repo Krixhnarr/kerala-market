@@ -33,6 +33,7 @@ export const itemUnits = async (ids) => {
 
 // ---- favourites (rows are the user's own; RLS scopes every query)
 export const favouriteMarketIds = async () => (unwrap(await supabase.from('favourite_markets').select('market_id'))).map(r => r.market_id);
+export const favouriteItemIds = async () => (unwrap(await supabase.from('favourite_items').select('item_id'))).map(r => r.item_id);
 export const favouriteCounts = async () => {
   const [s, i] = await Promise.all([
     unwrap(await supabase.from('favourite_sections').select('market_id')),

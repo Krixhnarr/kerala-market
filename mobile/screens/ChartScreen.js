@@ -4,7 +4,7 @@ import Svg, { Polyline, Line, Text as SvgText, Circle, Polygon } from 'react-nat
 import { useTheme, FONT } from '../lib/theme';
 import * as api from '../lib/api';
 import { itemIcon } from '../lib/icons';
-import { Card, H2, Hint, Chip, Input, Label } from '../components/ui';
+import { Card, H2, Hint, Chip, Input, Label, Star } from '../components/ui';
 
 const RANGES = [[30, '1M'], [90, '3M'], [180, '6M'], [365, '1Y'], [0, 'All']];
 const MAX_SERIES = 4;
@@ -12,10 +12,18 @@ const DAY = 864e5;
 
 // selected: [{id, name, name_ml, market, unit}] - managed by App so a tap on
 // the Market tab can add an item and switch here. user: for overlaying sales.
-export default function ChartScreen({ selected, setSelected, user }) {
+export default function ChartScreen({ selected, setSelected, user, requireUser }) {
   const t = useTheme();
   const { width } = useWindowDimensions();
   const [days, setDays] = useState(365);
+  const [favItems, setFavItems] = useState(new Set());
+  useEffect(() => { if (user) api.favouriteItemIds().then(ids => setFavItems(new Set(ids))).catch(() => {}); else setFavItems(new Set()); }, [user]);
+  const toggleFav = (id) => async () => {
+    if (!requireUser()) return;
+    const on = !favItems.has(id);
+    setFavItems(prev => { const n = new Set(prev); on ? n.add(id) : n.delete(id); return n; });
+    try { await api.setFavItem(user.id, id, on); } catch {}
+  };
   const [series, setSeries] = useState([]);
   const [sales, setSales] = useState([]);
   const [q, setQ] = useState('');
@@ -134,8 +142,11 @@ export default function ChartScreen({ selected, setSelected, user }) {
           <View style={[s.results, { borderColor: t.line, backgroundColor: t.surface }]}>
             {results.slice(0, 12).map(r => (
               <Pressable key={r.id} onPress={() => { add({ id: r.id, name: r.name, name_ml: r.name_ml, market: r.markets.name, unit: r.unit }); setQ(''); setResults([]); }} style={[s.result, { borderBottomColor: t.line }]}>
-                <Text style={{ color: t.ink, fontSize: 14, fontFamily: FONT.bold, textTransform: 'uppercase' }}>{itemIcon(r.name, r.name_ml)}  {r.name || r.name_ml}</Text>
-                <Text style={{ color: t.muted, fontSize: 12, fontFamily: FONT.regular }}>{r.name_ml} · {r.markets.name}{r.section && r.section !== r.markets.name ? ' / ' + r.section : ''}</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ color: t.ink, fontSize: 14, fontFamily: FONT.bold, textTransform: 'uppercase' }} numberOfLines={1}>{itemIcon(r.name, r.name_ml)}  {r.name || r.name_ml}</Text>
+                  <Text style={{ color: t.muted, fontSize: 12, fontFamily: FONT.regular }} numberOfLines={1}>{r.name_ml} · {r.markets.name}{r.section && r.section !== r.markets.name ? ' / ' + r.section : ''}</Text>
+                </View>
+                <Star on={favItems.has(r.id)} onPress={toggleFav(r.id)} size={16} dim />
               </Pressable>
             ))}
           </View>
@@ -239,7 +250,7 @@ export default function ChartScreen({ selected, setSelected, user }) {
 const s = StyleSheet.create({
   wrap: { padding: 12, paddingBottom: 40 },
   results: { borderWidth: 1, borderRadius: 2, marginBottom: 8, overflow: 'hidden' },
-  result: { paddingVertical: 7, paddingHorizontal: 10, borderBottomWidth: 1 },
+  result: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 10, borderBottomWidth: 1 },
   rangeRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 9, borderWidth: 1, borderRadius: 999 },

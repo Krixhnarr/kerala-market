@@ -9,11 +9,12 @@ import CommunityRates from '../components/CommunityRates';
 const FAV = 'fav';
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-export default function MarketScreen({ user, requireUser, onChartItem, onStatus }) {
+export default function MarketScreen({ user, requireUser, onChartItem, onStatus, onRefresh }) {
   const t = useTheme();
   const [status, setStatus] = useState(null);
   const [markets, setMarkets] = useState([]);
   const [favMarkets, setFavMarkets] = useState(new Set());
+  const [favItems, setFavItems] = useState(new Set());   // for stars on search results
   const [favCount, setFavCount] = useState(0);
   const [current, setCurrent] = useState(null);
   const [rows, setRows] = useState([]);
@@ -42,11 +43,11 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus 
 
   const loadTop = useCallback(async () => {
     try {
-      const [st, ms, fm, fc] = await Promise.all([
+      const [st, ms, fm, fc, fi] = await Promise.all([
         api.dataStatus(), api.markets(),
-        user ? api.favouriteMarketIds() : [], user ? api.favouriteCounts() : 0,
+        user ? api.favouriteMarketIds() : [], user ? api.favouriteCounts() : 0, user ? api.favouriteItemIds() : [],
       ]);
-      setStatus(st); setMarkets(ms); setFavMarkets(new Set(fm)); setFavCount(fc); setError('');
+      setStatus(st); setMarkets(ms); setFavMarkets(new Set(fm)); setFavCount(fc); setFavItems(new Set(fi)); setError('');
       onStatus?.(st);
     } catch (e) { setError(e.message); }
   }, [user, onStatus]);
@@ -74,7 +75,7 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus 
     loadRows(id);
   }, [ordered, current, favCount, loadRows]);
 
-  const refresh = async () => { setRefreshing(true); setReloads(n => n + 1); await loadTop(); await loadRows(current); setRefreshing(false); };
+  const refresh = async () => { setRefreshing(true); setReloads(n => n + 1); await Promise.all([loadTop(), onRefresh?.()]); await loadRows(current); setRefreshing(false); };
   const afterToggle = async () => { await loadTop(); await loadRows(current); };
 
   const toggleMarket = (m) => async () => {
@@ -88,6 +89,12 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus 
   const toggleItem = (r) => async () => {
     if (!requireUser()) return;
     await api.setFavItem(user.id, r.item_id, !r.fav_item); afterToggle();
+  };
+  const toggleFound = (r) => async () => {
+    if (!requireUser()) return;
+    const on = !favItems.has(r.item_id);
+    setFavItems(prev => { const n = new Set(prev); on ? n.add(r.item_id) : n.delete(r.item_id); return n; });
+    await api.setFavItem(user.id, r.item_id, on); afterToggle();
   };
 
   const favView = current === FAV;
@@ -157,6 +164,7 @@ export default function MarketScreen({ user, requireUser, onChartItem, onStatus 
                   </Text>
                   <Change change={r.change} base={r.price_low != null && r.change != null ? +r.price_low - +r.change : null} size={11} />
                 </View>
+                <Star on={favItems.has(r.item_id)} onPress={toggleFound(r)} size={16} dim />
               </Pressable>
             ))}
         </Card>

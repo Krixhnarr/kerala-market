@@ -74,7 +74,8 @@ export default function Drawer({ visible, onClose, user, openAuth, signOut, hous
           <Section title="Account" t={t}>
             {user ? (
               <>
-                <Text style={{ color: t.ink, fontSize: 14, fontFamily: FONT.medium, marginBottom: 10 }} numberOfLines={1}>{user.email}</Text>
+                <Text style={{ color: t.ink, fontSize: 14, fontFamily: FONT.medium }} numberOfLines={1}>{user.email}</Text>
+                <Text style={{ color: role === 'admin' ? t.accent : t.muted, fontSize: 12, fontFamily: FONT.bold, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>{role}</Text>
                 <Button title="Sign out" small onPress={() => { signOut(); onClose(); }} style={{ alignSelf: 'flex-start' }} />
               </>
             ) : (
@@ -132,7 +133,7 @@ export default function Drawer({ visible, onClose, user, openAuth, signOut, hous
               Two kinds of price, kept apart: farm-gate rates (what traders pay farmers, from the daily paper, no update on Sundays)
               and shop rates (what buyers pay at a local market, reported by shopkeepers there and combined per market).
             </Text>
-            <Text style={{ color: t.muted, fontSize: 12, marginTop: 8, fontFamily: FONT.regular }}>Version 1.2.0</Text>
+            <Text style={{ color: t.muted, fontSize: 12, marginTop: 8, fontFamily: FONT.regular }}>Version 1.2.1</Text>
           </Section>
         </ScrollView>
       </Animated.View>
